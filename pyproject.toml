@@ -1,0 +1,28 @@
+[project]
+name = "parcial2-g2-analisisdedatos"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "soffiblanco", email = "msblanco@unis.edu.gt" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "islp>=0.4.1",
+    "jupyter>=1.1.1",
+    "matplotlib>=3.11.1",
+    "notebook>=7.6.2",
+    "numpy>=2.5.2",
+    "pandas>=3.0.5",
+    "scikit-learn>=1.9.0",
+    "scipy>=1.18.1",
+    "seaborn>=0.13.2",
+    "statsmodels>=0.15.0",
+]
+
+[project.scripts]
+parcial2-g2-analisisdedatos = "parcial2_g2_analisisdedatos:main"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
