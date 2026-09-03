@@ -92,13 +92,13 @@ if os.path.exists(ruta_chelsea):
             )
 
         except Exception as e:
-            print(f"   ❌ Error procesando {csv}: {e}")
+            print(f"    Error procesando {csv}: {e}")
 
     # Guardar CSV Resumen
     df_resumen = pd.DataFrame(resumen_temporadas)
     df_resumen.to_csv(ruta_salida_chelsea, index=False, encoding="utf-8-sig")
-    print(f"   ✅ Resumen de {len(df_resumen)} temporadas generado:")
-    print(f"      📍 Guardado en: {ruta_salida_chelsea}")
+    print(f"    Resumen de {len(df_resumen)} temporadas generado:")
+    print(f"    Guardado en: {ruta_salida_chelsea}")
 
 # ==============================================================================
 # PARTE 2: CABO VERDE - TABLA ELO LIMPIA Y MODELO PROBABILÍSTICO
