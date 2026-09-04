@@ -56,7 +56,7 @@ if os.path.exists(ruta_chelsea_csv):
         color="red",
         linestyle="dashed",
         linewidth=2,
-        label="Chelsea 04/05 (12 GC)",
+        label=f"Chelsea 04/05 ({chelsea_0405['gc_campeon']} GC)",
     )
     plt.title("Histograma de Goles en Contra del Campeón (31 Temporadas)")
     plt.xlabel("Goles en Contra (GC)")
@@ -85,10 +85,10 @@ if os.path.exists(ruta_chelsea_csv):
         color="green",
     )
     plt.axhline(
-        12,
+        chelsea_0405["gc_campeon"],
         color="red",
         linestyle=":",
-        label="Récord Mínimo (Chelsea 04/05 = 12 GC)",
+        label=f"Récord Mínimo (Chelsea 04/05 = {chelsea_0405['gc_campeon']} GC)",
     )
     plt.xticks(rotation=90)
     plt.title("Serie Temporal: Goles en Contra (Campeón vs Mejor Defensa)")
@@ -162,21 +162,19 @@ def obtener_probabilidades_partido(elo_a, elo_b, k_empate=0.28):
     total = p_gana_a + p_empate + p_gana_b
     return (p_gana_a / total, p_empate / total, p_gana_b / total)
 
-
 def simular_partido(
-    equipo_a, equipo_b, elo_dict, semilla=None, k_empate=0.28
+    equipo_a, equipo_b, elo_dict, k_empate=0.28
 ):
-    """Simula un partido entre dos equipos y asigna 3/1/0 puntos según el resultado probabilístico.
+    """Simula un partido entre dos equipos y asigna 3/1/0 puntos.
 
     Retorna: (puntos_a, puntos_b, resultado_str)
     """
-    if semilla is not None:
-        random.seed(semilla)
-
     elo_a = elo_dict[equipo_a]
     elo_b = elo_dict[equipo_b]
 
-    p_a, p_emp, p_b = obtener_probabilidades_partido(elo_a, elo_b, k_empate)
+    p_a, p_emp, p_b = obtener_probabilidades_partido(
+        elo_a, elo_b, k_empate
+    )
 
     # Generar número aleatorio [0.0, 1.0) para definir el resultado
     r = random.random()
@@ -188,16 +186,19 @@ def simular_partido(
     else:
         return 0, 3, f"Victoria {equipo_b}"
 
-
 # PRUEBA DE FUNCIONES BASE 
 print("\n--- PRUEBA DE SIMULACIÓN DE PARTIDO Y ASIGNACIÓN DE PUNTOS ---")
 dict_elo = dict(zip(df_elo["equipo"], df_elo["elo_rating"]))
 
 # Simular 5 enfrentamientos de prueba Cabo Verde vs Camerún
+random.seed(42)
+
 print("Simulación de 5 partidos Cabo Verde vs Camerún:")
 for i in range(1, 6):
     pts_a, pts_b, res = simular_partido(
-        "Cabo Verde", "Camerún", dict_elo, semilla=i * 10
+        "Cabo Verde",
+        "Camerún",
+        dict_elo
     )
     print(
         f"   Partido {i}: {res} -> Cabo Verde obtiene {pts_a} pts | Camerún obtiene {pts_b} pts"
