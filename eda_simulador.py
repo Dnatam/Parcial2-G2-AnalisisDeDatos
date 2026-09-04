@@ -6,16 +6,14 @@ import numpy as np
 import pandas as pd
 
 print("=" * 75)
-print("DÍA 4 - INTEGRANTE 1: EDA COMPLETO Y FUNCIONES BASE DE SIMULACIÓN")
+print("DÍA 4: EDA COMPLETO Y FUNCIONES BASE DE SIMULACIÓN")
 print("=" * 75)
 
 # Carpetas para guardar gráficos
 os.makedirs("2.2.Chelsea/Graficas", exist_ok=True)
 os.makedirs("2.4.Cabo Verde/Graficas", exist_ok=True)
 
-# ==============================================================================
 # 1. CASO CHELSEA: EDA DEL DATASET PROCESADO (31 TEMPORADAS)
-# ==============================================================================
 ruta_chelsea_csv = "2.2.Chelsea/Data/chelsea_resumen.csv"
 
 if os.path.exists(ruta_chelsea_csv):
@@ -43,8 +41,8 @@ if os.path.exists(ruta_chelsea_csv):
         f"GC = {chelsea_0405['gc_campeon']} (Récord Histórico de la Premier League)"
     )
 
-    # --- GENERACIÓN DE GRÁFICOS CHELSEA ---
-    # Fig 1: Histograma de GC del Campeón
+    # GENERACIÓN DE GRÁFICOS CHELSEA
+    # Histograma de GC del Campeón
     plt.figure(figsize=(8, 5))
     plt.hist(
         df_chelsea["gc_campeon"],
@@ -69,7 +67,7 @@ if os.path.exists(ruta_chelsea_csv):
     plt.savefig("2.2.Chelsea/Graficas/histograma_gc_campeon.png")
     plt.close()
 
-    # Fig 2: Serie Temporal Campeón vs Mejor Defensa
+    # Serie Temporal Campeón vs Mejor Defensa
     plt.figure(figsize=(12, 5))
     plt.plot(
         df_chelsea["temporada"],
@@ -102,7 +100,7 @@ if os.path.exists(ruta_chelsea_csv):
     plt.savefig("2.2.Chelsea/Graficas/serie_temporal_gc.png")
     plt.close()
 
-    # Fig 3: Boxplot Comparativo
+    # Boxplot Comparativo
     plt.figure(figsize=(7, 5))
     plt.boxplot(
         [df_chelsea["gc_campeon"], df_chelsea["gc_mejor_defensa"]],
@@ -116,9 +114,8 @@ if os.path.exists(ruta_chelsea_csv):
     plt.savefig("2.2.Chelsea/Graficas/boxplot_gc_comparativo.png")
     plt.close()
 
-# ==============================================================================
+
 # 2. CASO CABO VERDE: EDA DE ELO Y FUNCIONES REUTILIZABLES DE SIMULACIÓN
-# ==============================================================================
 ruta_elo_limpio = "2.4.Cabo Verde/Data/elo_limpio.csv"
 
 if os.path.exists(ruta_elo_limpio):
@@ -153,7 +150,7 @@ if os.path.exists(ruta_elo_limpio):
     )
 
 
-# --- FUNCIONES BASE REUTILIZABLES PARA SIMULACIÓN ---
+# FUNCIONES BASE REUTILIZABLES PARA SIMULACIÓN 
 def obtener_probabilidades_partido(elo_a, elo_b, k_empate=0.28):
     """Retorna las probabilidades normalizadas de (Victoria A, Empate, Victoria B)."""
     diff = elo_a - elo_b
@@ -192,7 +189,7 @@ def simular_partido(
         return 0, 3, f"Victoria {equipo_b}"
 
 
-# --- PRUEBA DE FUNCIONES BASE ---
+# PRUEBA DE FUNCIONES BASE 
 print("\n--- PRUEBA DE SIMULACIÓN DE PARTIDO Y ASIGNACIÓN DE PUNTOS ---")
 dict_elo = dict(zip(df_elo["equipo"], df_elo["elo_rating"]))
 
