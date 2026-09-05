@@ -75,7 +75,7 @@ def actualizar_tabla(tabla, equipo_a, equipo_b, puntos_a, puntos_b):
         tabla[equipo_b]["E"] += 1
 
 # Simula todos los partidos del grupo en formato ida y vuelta
-def simular_grupo(elo_dict, k_empate=0.28):
+def simular_grupo(elo_dict, k_empate=0.3237):
     tabla = crear_tabla()
     partidos = []
 

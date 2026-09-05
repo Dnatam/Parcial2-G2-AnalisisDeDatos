@@ -2,7 +2,7 @@ import math
 import random
 
 # Calcula las probabilidades de victoria, empate y derrota a partir del Elo
-def obtener_probabilidades_partido(elo_a, elo_b, k_empate=0.28):
+def obtener_probabilidades_partido(elo_a, elo_b, k_empate=0.3237):
     diff = elo_a - elo_b
     e_a = 1 / (1 + 10 ** (-diff / 400))
 
@@ -19,7 +19,7 @@ def obtener_probabilidades_partido(elo_a, elo_b, k_empate=0.28):
     )
 
 # Simula un partido y devuelve los puntos obtenidos por cada equipo
-def simular_partido(equipo_a, equipo_b, elo_dict, k_empate=0.28):
+def simular_partido(equipo_a, equipo_b, elo_dict, k_empate=0.3237):
     elo_a = elo_dict[equipo_a]
     elo_b = elo_dict[equipo_b]
 

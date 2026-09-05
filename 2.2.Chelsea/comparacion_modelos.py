@@ -49,8 +49,50 @@ else:
     print(f"Diferencia de AIC: {diferencia_aic:.4f}")
     print("La diferencia es pequeña, por lo que no existe una ventaja contundente según AIC.")
 
+# Evalúa la dispersión observada en los datos
+media_observada = gc_campeon.mean()
+varianza_observada = gc_campeon.var()
+
+print("\n--- DISPERSIÓN OBSERVADA ---")
+print(f"Media observada: {media_observada:.4f}")
+print(f"Varianza observada: {varianza_observada:.4f}")
+
+if varianza_observada > media_observada:
+    print(
+        "Los datos presentan sobredispersión, ya que la varianza "
+        "es mayor que la media."
+    )
+    print(
+        "Esto favorece considerar la Binomial Negativa, porque permite "
+        "una varianza mayor que la media."
+    )
+else:
+    print(
+        "No se observa sobredispersión marcada en los datos."
+    )
+
+# Compara específicamente la cola relevante para romper el récord
+factor_cola = (
+    resultado_nb["p_record"] /
+    resultado_poisson["p_record"]
+)
+
+print("\n--- COMPARACIÓN DE LA COLA INFERIOR ---")
+print(
+    f"Poisson estima P(X <= 14) = "
+    f"{resultado_poisson['p_record'] * 100:.6f}%"
+)
+print(
+    f"Binomial Negativa estima P(X <= 14) = "
+    f"{resultado_nb['p_record'] * 100:.6f}%"
+)
+print(
+    f"La Binomial Negativa estima una probabilidad "
+    f"{factor_cola:.2f} veces mayor en la cola inferior."
+)
+
 # Comparación visual de las frecuencias observadas con ambos modelos
-x = np.arange(14, gc_campeon.max() + 1)
+x = np.arange(0, gc_campeon.max() + 1)
 
 frecuencia_observada = (
     gc_campeon.value_counts()

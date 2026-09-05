@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from poisson import ajustar_poisson
 from binomial_negativa import ajustar_binomial_negativa
 
-# Calcula la probabilidad de observar al menos una ruptura del récord dentro de N temporadas
+# Calcula la probabilidad de observar al menos una ruptura del récord en N temporadas, suponiendo una probabilidad constante p e independencia entre temporadas
 def probabilidad_en_horizonte(p, n_temporadas):
     return 1 - (1 - p) ** n_temporadas
 

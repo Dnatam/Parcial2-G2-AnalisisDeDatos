@@ -37,6 +37,12 @@ def ajustar_binomial_negativa(gc_campeon):
         method="L-BFGS-B"
     )
 
+    if not resultado_opt.success:
+        raise RuntimeError(
+            "El ajuste de la Binomial Negativa no convergió: "
+            f"{resultado_opt.message}"
+        )
+
     mu = np.exp(resultado_opt.x[0])
     r = np.exp(resultado_opt.x[1])
     p = r / (r + mu)
