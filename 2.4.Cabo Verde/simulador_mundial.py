@@ -78,11 +78,11 @@ def simular_grupo_mundial(elo_dict, semilla=None):
 
 
 def convertir_tabla_dataframe(tabla):
-    """Convierte la tabla a DataFrame y la ordena por Puntos y Victorias."""
+    """Convierte la tabla a DataFrame y la ordena solo por Puntos."""
     df_tabla = pd.DataFrame.from_dict(tabla, orient="index")
     df_tabla.index.name = "Equipo"
     return df_tabla.sort_values(
-        by=["Pts", "G"], ascending=[False, False]
+        by="Pts", ascending=False
     ).reset_index()
 
 
@@ -107,6 +107,11 @@ if __name__ == "__main__":
 
         print("\nTabla Final del Grupo:")
         print(df_final.to_string(index=False))
+
+        print(
+            "\nNota: si dos o más equipos terminan con los mismos puntos, "
+            "el modelo no aplica criterios de desempate porque no simula marcadores."
+        )
 
     except Exception as e:
         print(f"\nError durante la ejecución: {e}")
