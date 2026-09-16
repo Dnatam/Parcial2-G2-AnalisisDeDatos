@@ -1,4 +1,3 @@
-
 from pathlib import Path
 
 import numpy as np
@@ -40,24 +39,26 @@ print(f"Media: {gc_mejor_defensa.mean():.4f}")
 
 
 # TRANSFORMACIÓN DE MÍNIMOS A MÁXIMOS
-
 y = -gc_mejor_defensa
 
 
 # AJUSTE GEV
-xi, loc, scale = genextreme.fit(y)
+# SciPy devuelve c; la interpretación teórica de forma es xi = -c
+c, loc, scale = genextreme.fit(y)
+xi = -c
 
 print("\n--- AJUSTE GEV ---")
-print(f"xi (forma): {xi:.6f}")
+print(f"c (SciPy): {c:.6f}")
+print(f"xi (forma teórica = -c): {xi:.6f}")
 print(f"loc (localización): {loc:.6f}")
 print(f"scale (escala): {scale:.6f}")
 
 
 # PROBABILIDAD DE ROMPER EL RÉCORD
-
+# Se evalúa pasando el parámetro c a SciPy
 p_record = genextreme.sf(
     -14,
-    xi,
+    c,
     loc=loc,
     scale=scale
 )
@@ -75,7 +76,7 @@ x = np.linspace(y.min(), y.max(), 200)
 
 pdf = genextreme.pdf(
     x,
-    xi,
+    c,
     loc=loc,
     scale=scale
 )
@@ -136,12 +137,13 @@ for i in range(n_bootstrap):
     try:
 
         # Ajustar GEV
-        xi_boot, loc_boot, scale_boot = genextreme.fit(y_boot)
+        c_boot, loc_boot, scale_boot = genextreme.fit(y_boot)
+        xi_boot = -c_boot
 
-        # Calcular probabilidad de romper el récord
+        # Calcular probabilidad de romper el récord pasando c_boot
         p_boot = genextreme.sf(
             -14,
-            xi_boot,
+            c_boot,
             loc=loc_boot,
             scale=scale_boot
         )
@@ -155,6 +157,7 @@ for i in range(n_bootstrap):
         R_boot = 1 / p_boot
 
         resultados_bootstrap.append({
+            "c": c_boot,
             "xi": xi_boot,
             "loc": loc_boot,
             "scale": scale_boot,
@@ -168,10 +171,13 @@ for i in range(n_bootstrap):
 
 bootstrap_df = pd.DataFrame(resultados_bootstrap)
 
+porcentaje_fallos = (fallos / n_bootstrap) * 100
+
 print("\n--- BOOTSTRAP ---")
 print(f"Simulaciones solicitadas: {n_bootstrap}")
 print(f"Ajustes válidos: {len(bootstrap_df)}")
 print(f"Fallos: {fallos}")
+print(f"Porcentaje de fallos: {porcentaje_fallos:.2f}%")
 
 
 # RESUMEN DE INCERTIDUMBRE
@@ -219,11 +225,16 @@ if len(bootstrap_df) > 0:
     print("Data/chelsea_bootstrap_gev.csv")
     print("Data/chelsea_resumen_gev.csv")
 
-    # GRÁFICA DEL BOOTSTRAP DE R
+    # GRÁFICA DEL BOOTSTRAP DE R (Recortada al percentil 95 para visualización)
     plt.figure(figsize=(10, 6))
 
+    limite_R = bootstrap_df["R"].quantile(0.95)
+
     plt.hist(
-        bootstrap_df["R"],
+        bootstrap_df.loc[
+            bootstrap_df["R"] <= limite_R,
+            "R"
+        ],
         bins=40,
         alpha=0.7
     )
@@ -237,7 +248,7 @@ if len(bootstrap_df) > 0:
 
     plt.xlabel("Período de retorno R")
     plt.ylabel("Frecuencia")
-    plt.title("Distribución bootstrap del período de retorno")
+    plt.title("Distribución bootstrap del período de retorno (hasta P95)")
     plt.legend()
     plt.grid(axis="y", alpha=0.3)
     plt.tight_layout()
