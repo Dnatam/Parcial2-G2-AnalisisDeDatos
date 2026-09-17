@@ -263,8 +263,17 @@ if len(bootstrap_df) > 0:
     # GRÁFICA DEL BOOTSTRAP DE XI
     plt.figure(figsize=(10, 6))
 
+    # Se limita únicamente la visualización para evitar que valores bootstrap extremos distorsionen la escala
+    limite_inferior_xi = bootstrap_df["xi"].quantile(0.01)
+    limite_superior_xi = bootstrap_df["xi"].quantile(0.99)
+
+    xi_visualizacion = bootstrap_df[
+        (bootstrap_df["xi"] >= limite_inferior_xi) &
+        (bootstrap_df["xi"] <= limite_superior_xi)
+    ]["xi"]
+
     plt.hist(
-        bootstrap_df["xi"],
+        xi_visualizacion,
         bins=40,
         alpha=0.7
     )
@@ -278,7 +287,7 @@ if len(bootstrap_df) > 0:
 
     plt.xlabel("Parámetro de forma xi")
     plt.ylabel("Frecuencia")
-    plt.title("Distribución bootstrap del parámetro xi")
+    plt.title("Distribución bootstrap del parámetro xi (P1-P99)")
     plt.legend()
     plt.grid(axis="y", alpha=0.3)
     plt.tight_layout()

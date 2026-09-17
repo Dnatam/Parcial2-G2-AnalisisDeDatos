@@ -77,7 +77,17 @@ print(salida)
 
 plt.figure(figsize=(10, 6))
 
-plt.hist(df["R"], bins=50)
+# Se limita únicamente la visualización hasta P95
+# para evitar que valores bootstrap extremos distorsionen la escala
+R_visualizacion = df[
+    df["R"] <= R_P95
+]["R"]
+
+plt.hist(
+    R_visualizacion,
+    bins=40,
+    alpha=0.7
+)
 
 plt.axvline(
     R_P5,
@@ -99,8 +109,12 @@ plt.axvline(
 
 plt.xlabel("Período de retorno R (temporadas)")
 plt.ylabel("Frecuencia")
-plt.title("Incertidumbre bootstrap del período de retorno GEV")
+plt.title(
+    "Incertidumbre bootstrap del período de retorno GEV "
+    "(hasta P95)"
+)
 plt.legend()
+plt.grid(axis="y", alpha=0.3)
 plt.tight_layout()
 
 grafica_R = GRAPH_DIR / "incertidumbre_bootstrap_R.png"
@@ -115,7 +129,21 @@ print(grafica_R)
 
 plt.figure(figsize=(10, 6))
 
-plt.hist(df["xi"], bins=40)
+# Se limita únicamente la visualización entre P1 y P99
+# para evitar que valores bootstrap extremos distorsionen la escala
+limite_inferior_xi = df["xi"].quantile(0.01)
+limite_superior_xi = df["xi"].quantile(0.99)
+
+xi_visualizacion = df[
+    (df["xi"] >= limite_inferior_xi) &
+    (df["xi"] <= limite_superior_xi)
+]["xi"]
+
+plt.hist(
+    xi_visualizacion,
+    bins=40,
+    alpha=0.7
+)
 
 plt.axvline(
     xi_P5,
@@ -143,7 +171,7 @@ plt.axvline(
 
 plt.xlabel("Parámetro de forma xi")
 plt.ylabel("Frecuencia")
-plt.title("Incertidumbre bootstrap del parámetro de forma GEV")
+plt.title("Incertidumbre bootstrap del parámetro de forma GEV (P1-P99)")
 plt.legend()
 plt.tight_layout()
 
