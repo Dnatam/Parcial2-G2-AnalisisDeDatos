@@ -1,0 +1,45 @@
+CHELSEA: INCERTIDUMBRE DEL BOOTSTRAP GEV
+
+## DATOS DEL BOOTSTRAP
+
+Simulaciones solicitadas: 2000
+Simulaciones válidas: 1883
+Fallos: 117
+Porcentaje válido: 94.15%
+Porcentaje de fallos: 5.85%
+
+## PERÍODO DE RETORNO R
+
+Mediana: 47.170990 temporadas
+P5: 16.481061 temporadas
+P95: 620.256587 temporadas
+
+Intervalo de incertidumbre del 90%:
+[16.481061, 620.256587] temporadas
+
+## PARÁMETRO DE FORMA XI
+
+Mediana: -0.079782
+P5: -0.505654
+P95: 0.166795
+
+Intervalo de incertidumbre del 90%:
+[-0.505654, 0.166795]
+
+## ANÁLISIS COMPLETADO
+
+El análisis se realizó mediante 2000 simulaciones bootstrap del ajuste GEV.
+Se obtuvieron 1883 ajustes válidos, equivalentes al 94.15% de las
+simulaciones. El 5.85% restante correspondió a ajustes que no produjeron
+resultados válidos.
+
+El período de retorno estimado presenta una mediana de 47.170990 temporadas,
+con un intervalo de incertidumbre del 90% entre 16.481061 y 620.256587
+temporadas.
+
+El parámetro de forma xi presenta una mediana de -0.079782, con un
+intervalo de incertidumbre del 90% entre -0.505654 y 0.166795.
+
+Estos resultados muestran una incertidumbre considerable en la estimación
+del período de retorno y del parámetro de forma, por lo que las
+estimaciones deben interpretarse con cautela debido al tamaño de la muestra.
