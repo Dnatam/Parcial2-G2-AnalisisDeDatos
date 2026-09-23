@@ -85,6 +85,48 @@ def convertir_tabla_dataframe(tabla):
         by="Pts", ascending=False
     ).reset_index()
 
+def clasificar_posicion_cabo_verde(tabla):
+    """Determina la posición de Cabo Verde únicamente por puntos."""
+    puntos_cv = tabla["Cabo Verde"]["Pts"]
+
+    equipos_superiores = sum(
+        1
+        for equipo in EQUIPOS_GRUPO
+        if tabla[equipo]["Pts"] > puntos_cv
+    )
+
+    equipos_igualados = sum(
+        1
+        for equipo in EQUIPOS_GRUPO
+        if tabla[equipo]["Pts"] == puntos_cv
+    )
+
+    posicion_minima = equipos_superiores + 1
+    posicion_maxima = equipos_superiores + equipos_igualados
+
+    if equipos_igualados == 1:
+        return f"{posicion_minima}°"
+
+    return f"Empate {posicion_minima}°-{posicion_maxima}°"
+
+
+def monte_carlo_grupo(elo_dict, n_simulaciones=100000):
+    """Simula el grupo completo muchas veces y registra la posición de Cabo Verde."""
+    resultados = {}
+
+    for _ in range(n_simulaciones):
+        tabla, _ = simular_grupo_mundial(elo_dict)
+
+        posicion = clasificar_posicion_cabo_verde(tabla)
+
+        resultados[posicion] = resultados.get(posicion, 0) + 1
+
+    porcentajes = {
+        posicion: cantidad / n_simulaciones * 100
+        for posicion, cantidad in resultados.items()
+    }
+
+    return porcentajes
 
 # EJECUCIÓN PRINCIPAL
 if __name__ == "__main__":
@@ -112,6 +154,29 @@ if __name__ == "__main__":
             "\nNota: si dos o más equipos terminan con los mismos puntos, "
             "el modelo no aplica criterios de desempate porque no simula marcadores."
         )
+
+            # Monte Carlo del grupo completo
+        n_simulaciones = 100000
+
+        print(
+            f"\nEJECUTANDO MONTE CARLO DEL GRUPO "
+            f"({n_simulaciones:,} simulaciones)..."
+        )
+
+        random.seed(42)
+
+        resultados_mc = monte_carlo_grupo(
+            elo_dict,
+            n_simulaciones
+        )
+
+        print("\nPROBABILIDAD DE POSICIÓN DE CABO VERDE:")
+
+        for posicion, porcentaje in sorted(resultados_mc.items()):
+            print(
+                f"{posicion:<20}: "
+                f"{porcentaje:.2f}%"
+            )
 
     except Exception as e:
         print(f"\nError durante la ejecución: {e}")
