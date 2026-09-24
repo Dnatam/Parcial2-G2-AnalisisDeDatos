@@ -218,48 +218,69 @@ comparacion.to_csv(
 print("\nComparación guardada en:")
 print(archivo_comparacion)
 
+# 10. GRÁFICA DEL AJUSTE GPD MEDIANTE CDF
 
-# 10. GRÁFICA DEL AJUSTE GPD
+# Ordenar las excedencias observadas
+excedencias_ordenadas = np.sort(excedencias)
 
+# CDF empírica
+n = len(excedencias_ordenadas)
+
+cdf_empirica = np.arange(
+    1,
+    n + 1
+) / n
+
+# Valores para representar la CDF teórica
 x = np.linspace(
     0,
-    excedencias.max(),
+    excedencias_ordenadas.max(),
     300
 )
 
-pdf = genpareto.pdf(
+# CDF de la Pareto Generalizada ajustada
+cdf_gpd = genpareto.cdf(
     x,
     xi_gpd,
     loc=0,
     scale=scale_gpd
 )
 
-
 plt.figure(figsize=(10, 6))
 
-plt.hist(
-    excedencias,
-    bins=max(4, len(excedencias)),
-    density=True,
-    alpha=0.7,
-    label="Excedencias observadas"
+# Datos observados
+plt.step(
+    excedencias_ordenadas,
+    cdf_empirica,
+    where="post",
+    linewidth=2,
+    label="CDF empírica"
 )
 
+plt.scatter(
+    excedencias_ordenadas,
+    cdf_empirica,
+    s=50
+)
+
+# Modelo GPD
 plt.plot(
     x,
-    pdf,
+    cdf_gpd,
     linewidth=2,
-    label="Pareto Generalizada"
+    label="CDF Pareto Generalizada"
 )
 
 plt.xlabel("Excedencia sobre el umbral")
-plt.ylabel("Densidad")
+plt.ylabel("Probabilidad acumulada")
 plt.title(
-    "Ajuste Pareto Generalizada a las mejores defensas"
+    "CDF empírica vs. Pareto Generalizada"
 )
 
+plt.ylim(0, 1.05)
+
 plt.legend()
-plt.grid(axis="y", alpha=0.3)
+plt.grid(alpha=0.3)
 plt.tight_layout()
 
 grafica_gpd = (
@@ -275,7 +296,6 @@ plt.close()
 
 print("\nGráfica GPD guardada en:")
 print(grafica_gpd)
-
 
 # 11. GRÁFICA DE SENSIBILIDAD DE XI
 
