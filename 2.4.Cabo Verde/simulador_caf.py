@@ -25,7 +25,7 @@ def cargar_elo(ruta="Data/elo_limpio.csv"):
         )
     )
 
-    # Verificar que todas las selecciones del grupo tengan Elo disponible
+    # Verifica que todas las selecciones del grupo tengan un rating Elo disponible.
     faltantes = [
         equipo
         for equipo in EQUIPOS_GRUPO
@@ -39,7 +39,7 @@ def cargar_elo(ruta="Data/elo_limpio.csv"):
 
     return elo_dict
 
-# Crea una tabla vacía para registrar el rendimiento de cada selección
+# Crea una tabla vacía para registrar el rendimiento de cada selección durante la simulación.
 def crear_tabla():
     tabla = {}
 
@@ -54,8 +54,14 @@ def crear_tabla():
 
     return tabla
 
-# Actualiza la tabla después de cada partido
-def actualizar_tabla(tabla, equipo_a, equipo_b, puntos_a, puntos_b):
+# Actualiza la tabla de posiciones después de cada partido.
+def actualizar_tabla(
+    tabla,
+    equipo_a,
+    equipo_b,
+    puntos_a,
+    puntos_b
+):
     tabla[equipo_a]["PJ"] += 1
     tabla[equipo_b]["PJ"] += 1
 
@@ -74,20 +80,24 @@ def actualizar_tabla(tabla, equipo_a, equipo_b, puntos_a, puntos_b):
         tabla[equipo_a]["E"] += 1
         tabla[equipo_b]["E"] += 1
 
-# Simula todos los partidos del grupo en formato ida y vuelta
-def simular_grupo(elo_dict, k_empate=0.3237):
+# Simula todos los partidos del grupo clasificatorio en formato ida y vuelta.
+def simular_grupo(elo_dict):
     tabla = crear_tabla()
     partidos = []
 
-    # Cada pareja se enfrenta dos veces
-    for equipo_a, equipo_b in combinations(EQUIPOS_GRUPO, 2):
+    # Cada pareja de selecciones disputa dos encuentros: uno con cada selección actuando como local.
+    for equipo_a, equipo_b in combinations(
+        EQUIPOS_GRUPO,
+        2
+    ):
 
         # Partido de ida
+        # neutral=False activa el efecto de localía gamma estimado durante la calibración Elo-Poisson.
         puntos_a, puntos_b, resultado = simular_partido(
             equipo_a,
             equipo_b,
             elo_dict,
-            k_empate
+            neutral=False
         )
 
         actualizar_tabla(
@@ -104,12 +114,12 @@ def simular_grupo(elo_dict, k_empate=0.3237):
             "Resultado": resultado
         })
 
-        # Partido de vuelta
+        # Partido de vuelta: se invierte el equipo local.
         puntos_b, puntos_a, resultado = simular_partido(
             equipo_b,
             equipo_a,
             elo_dict,
-            k_empate
+            neutral=False
         )
 
         actualizar_tabla(
@@ -128,7 +138,7 @@ def simular_grupo(elo_dict, k_empate=0.3237):
 
     return tabla, partidos
 
-# Convierte el diccionario de resultados en una tabla ordenada por puntos
+# Convierte el diccionario de resultados en una tabla ordenada según los puntos obtenidos.
 def convertir_tabla_dataframe(tabla):
     df_tabla = pd.DataFrame.from_dict(
         tabla,
@@ -144,7 +154,8 @@ def convertir_tabla_dataframe(tabla):
 
     return df_tabla
 
-# Determina al ganador del grupo
+# Determina al ganador del grupo según la cantidad de puntos.
+# Si existe un empate en puntos por el primer lugar, se selecciona aleatoriamente uno de los líderes porque el modelo actual no simula marcadores ni diferencia de goles.
 def obtener_ganador(tabla):
     max_puntos = max(
         datos["Pts"]
@@ -173,19 +184,23 @@ if __name__ == "__main__":
 
     ganador = obtener_ganador(tabla)
 
-    print("\n--- PARTIDOS SIMULADOS ---")
+    print("\nPARTIDOS SIMULADOS")
 
-    for i, partido in enumerate(partidos, start=1):
+    for i, partido in enumerate(
+        partidos,
+        start=1
+    ):
         print(
             f"{i:02d}. "
-            f"{partido['Local']} vs {partido['Visitante']} "
+            f"{partido['Local']} vs "
+            f"{partido['Visitante']} "
             f"-> {partido['Resultado']}"
         )
 
-    print("\n--- TABLA FINAL DEL GRUPO ---")
+    print("\nTABLA FINAL DEL GRUPO")
     print(df_tabla.to_string())
 
-    print("\n--- CLASIFICACIÓN DIRECTA ---")
+    print("\nCLASIFICACIÓN DIRECTA")
     print(f"Ganador del grupo: {ganador}")
 
     if ganador == "Cabo Verde":
