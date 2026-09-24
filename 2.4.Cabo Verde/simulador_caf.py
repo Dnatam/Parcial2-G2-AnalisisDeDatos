@@ -1,10 +1,13 @@
 import random
+import numpy as np
 import pandas as pd
-
 from itertools import combinations
+
 from simulacion_base import simular_partido
 
-# Selecciones del grupo clasificatorio de Cabo Verde
+
+# CONFIGURACIÓN
+
 EQUIPOS_GRUPO = [
     "Cabo Verde",
     "Camerún",
@@ -14,8 +17,11 @@ EQUIPOS_GRUPO = [
     "Esuatini"
 ]
 
-# Carga los ratings Elo necesarios para la simulación
+
+# CARGAR ELO
+
 def cargar_elo(ruta="Data/elo_limpio.csv"):
+
     df_elo = pd.read_csv(ruta)
 
     elo_dict = dict(
@@ -25,7 +31,6 @@ def cargar_elo(ruta="Data/elo_limpio.csv"):
         )
     )
 
-    # Verifica que todas las selecciones del grupo tengan un rating Elo disponible.
     faltantes = [
         equipo
         for equipo in EQUIPOS_GRUPO
@@ -39,107 +44,168 @@ def cargar_elo(ruta="Data/elo_limpio.csv"):
 
     return elo_dict
 
-# Crea una tabla vacía para registrar el rendimiento de cada selección durante la simulación.
+
+# CREAR TABLA
+
 def crear_tabla():
+
     tabla = {}
 
     for equipo in EQUIPOS_GRUPO:
+
         tabla[equipo] = {
             "PJ": 0,
             "G": 0,
             "E": 0,
             "P": 0,
+            "GF": 0,
+            "GC": 0,
+            "DG": 0,
             "Pts": 0
         }
 
     return tabla
 
-# Actualiza la tabla de posiciones después de cada partido.
+
+# ACTUALIZAR TABLA
+
 def actualizar_tabla(
     tabla,
     equipo_a,
     equipo_b,
     puntos_a,
-    puntos_b
+    puntos_b,
+    goles_a,
+    goles_b
 ):
+
     tabla[equipo_a]["PJ"] += 1
     tabla[equipo_b]["PJ"] += 1
+
+    tabla[equipo_a]["GF"] += goles_a
+    tabla[equipo_a]["GC"] += goles_b
+
+    tabla[equipo_b]["GF"] += goles_b
+    tabla[equipo_b]["GC"] += goles_a
+
+    tabla[equipo_a]["DG"] = (
+        tabla[equipo_a]["GF"]
+        - tabla[equipo_a]["GC"]
+    )
+
+    tabla[equipo_b]["DG"] = (
+        tabla[equipo_b]["GF"]
+        - tabla[equipo_b]["GC"]
+    )
 
     tabla[equipo_a]["Pts"] += puntos_a
     tabla[equipo_b]["Pts"] += puntos_b
 
     if puntos_a == 3:
+
         tabla[equipo_a]["G"] += 1
         tabla[equipo_b]["P"] += 1
 
     elif puntos_b == 3:
+
         tabla[equipo_b]["G"] += 1
         tabla[equipo_a]["P"] += 1
 
     else:
+
         tabla[equipo_a]["E"] += 1
         tabla[equipo_b]["E"] += 1
 
-# Simula todos los partidos del grupo clasificatorio en formato ida y vuelta.
+
+# SIMULAR GRUPO
+
 def simular_grupo(elo_dict):
+
     tabla = crear_tabla()
     partidos = []
 
-    # Cada pareja de selecciones disputa dos encuentros: uno con cada selección actuando como local.
+    # Cada pareja juega dos partidos:
+    # ida y vuelta.
     for equipo_a, equipo_b in combinations(
         EQUIPOS_GRUPO,
         2
     ):
 
-        # Partido de ida
-        # neutral=False activa el efecto de localía gamma estimado durante la calibración Elo-Poisson.
-        puntos_a, puntos_b, resultado = simular_partido(
+        # Primer partido
+        resultado = simular_partido(
             equipo_a,
             equipo_b,
             elo_dict,
             neutral=False
         )
+
+        (
+            puntos_a,
+            puntos_b,
+            goles_a,
+            goles_b,
+            texto
+        ) = resultado
 
         actualizar_tabla(
             tabla,
             equipo_a,
             equipo_b,
             puntos_a,
-            puntos_b
+            puntos_b,
+            goles_a,
+            goles_b
         )
 
         partidos.append({
             "Local": equipo_a,
             "Visitante": equipo_b,
-            "Resultado": resultado
+            "Goles Local": goles_a,
+            "Goles Visitante": goles_b,
+            "Resultado": texto
         })
 
-        # Partido de vuelta: se invierte el equipo local.
-        puntos_b, puntos_a, resultado = simular_partido(
+        # Segundo partido
+        resultado = simular_partido(
             equipo_b,
             equipo_a,
             elo_dict,
             neutral=False
         )
 
+        (
+            puntos_b,
+            puntos_a,
+            goles_b,
+            goles_a,
+            texto
+        ) = resultado
+
         actualizar_tabla(
             tabla,
             equipo_b,
             equipo_a,
             puntos_b,
-            puntos_a
+            puntos_a,
+            goles_b,
+            goles_a
         )
 
         partidos.append({
             "Local": equipo_b,
             "Visitante": equipo_a,
-            "Resultado": resultado
+            "Goles Local": goles_b,
+            "Goles Visitante": goles_a,
+            "Resultado": texto
         })
 
     return tabla, partidos
 
-# Convierte el diccionario de resultados en una tabla ordenada según los puntos obtenidos.
+
+# CONVERTIR TABLA A DATAFRAME
+
 def convertir_tabla_dataframe(tabla):
+
     df_tabla = pd.DataFrame.from_dict(
         tabla,
         orient="index"
@@ -148,41 +214,80 @@ def convertir_tabla_dataframe(tabla):
     df_tabla.index.name = "Equipo"
 
     df_tabla = df_tabla.sort_values(
-        by="Pts",
-        ascending=False
+        by=[
+            "Pts",
+            "DG",
+            "GF"
+        ],
+        ascending=[
+            False,
+            False,
+            False
+        ]
     )
 
     return df_tabla
 
-# Determina al ganador del grupo según la cantidad de puntos.
-# Si existe un empate en puntos por el primer lugar, se selecciona aleatoriamente uno de los líderes porque el modelo actual no simula marcadores ni diferencia de goles.
+
+# OBTENER GANADOR
+
 def obtener_ganador(tabla):
-    max_puntos = max(
-        datos["Pts"]
-        for datos in tabla.values()
+
+    equipos_ordenados = sorted(
+        tabla.keys(),
+        key=lambda equipo: (
+            tabla[equipo]["Pts"],
+            tabla[equipo]["DG"],
+            tabla[equipo]["GF"]
+        ),
+        reverse=True
     )
 
-    lideres = [
+    # Identificar si todavía existe empate completo.
+    mejor = equipos_ordenados[0]
+
+    candidatos = [
         equipo
-        for equipo, datos in tabla.items()
-        if datos["Pts"] == max_puntos
+        for equipo in equipos_ordenados
+        if (
+            tabla[equipo]["Pts"],
+            tabla[equipo]["DG"],
+            tabla[equipo]["GF"]
+        )
+        == (
+            tabla[mejor]["Pts"],
+            tabla[mejor]["DG"],
+            tabla[mejor]["GF"]
+        )
     ]
 
-    return random.choice(lideres)
+    return random.choice(candidatos)
 
+
+# PRUEBA
 
 if __name__ == "__main__":
-    print("DÍA 5 - CABO VERDE: SIMULACIÓN DEL GRUPO CAF")
+
+    print("=" * 70)
+    print("CABO VERDE - SIMULACIÓN DE CLASIFICACIÓN CAF")
+    print("=" * 70)
+
+    random.seed(42)
+    np.random.seed(42)
 
     elo_dict = cargar_elo()
 
-    # Semilla para poder reproducir esta simulación de ejemplo
-    random.seed(42)
+    tabla, partidos = simular_grupo(
+        elo_dict
+    )
 
-    tabla, partidos = simular_grupo(elo_dict)
-    df_tabla = convertir_tabla_dataframe(tabla)
+    df_tabla = convertir_tabla_dataframe(
+        tabla
+    )
 
-    ganador = obtener_ganador(tabla)
+    ganador = obtener_ganador(
+        tabla
+    )
 
     print("\nPARTIDOS SIMULADOS")
 
@@ -190,20 +295,36 @@ if __name__ == "__main__":
         partidos,
         start=1
     ):
+
         print(
             f"{i:02d}. "
-            f"{partido['Local']} vs "
+            f"{partido['Local']} "
+            f"{partido['Goles Local']}-"
+            f"{partido['Goles Visitante']} "
             f"{partido['Visitante']} "
             f"-> {partido['Resultado']}"
         )
 
-    print("\nTABLA FINAL DEL GRUPO")
-    print(df_tabla.to_string())
+    print("\nTABLA FINAL")
+
+    print(
+        df_tabla.to_string()
+    )
 
     print("\nCLASIFICACIÓN DIRECTA")
-    print(f"Ganador del grupo: {ganador}")
+
+    print(
+        f"Ganador del grupo: {ganador}"
+    )
 
     if ganador == "Cabo Verde":
-        print("Cabo Verde clasifica directamente.")
+
+        print(
+            "Cabo Verde clasifica directamente."
+        )
+
     else:
-        print("Cabo Verde no clasifica directamente.")
+
+        print(
+            "Cabo Verde no clasifica directamente."
+        )

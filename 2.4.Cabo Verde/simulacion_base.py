@@ -2,24 +2,33 @@ import random
 import numpy as np
 from scipy.stats import skellam
 
-# Parámetros estimados mediante máxima verosimilitud utilizando el histórico de partidos internacionales.
+
+# PARÁMETROS DEL MODELO
+
+# Parámetros estimados mediante máxima verosimilitud
+# utilizando partidos internacionales históricos.
 ALPHA = 0.04543275
 BETA = 0.00168037
 GAMMA = 0.28665411
 
-# Calcula las probabilidades de victoria, empate y derrota mediante un modelo Elo-Poisson y la distribución de Skellam.
-def obtener_probabilidades_partido(
+
+# PROBABILIDADES ELO-POISSON-SKELLAM
+
+def obtener_lambdas(
     elo_a,
     elo_b,
     neutral=True
 ):
+    """
+    Calcula los goles esperados (lambda) de ambos equipos
+    utilizando el modelo Elo-Poisson calibrado.
+    """
+
     diferencia = elo_a - elo_b
 
-    # En sede neutral no se aplica ventaja de localía.
-    # En partidos no neutrales, el efecto gamma incrementa la intensidad esperada de goles del equipo A.
+    # En sede neutral no existe ventaja de localía.
     localia = 0 if neutral else 1
 
-    # Calcula los goles esperados de cada selección.
     lambda_a = np.exp(
         ALPHA
         + BETA * diferencia
@@ -31,23 +40,43 @@ def obtener_probabilidades_partido(
         - BETA * diferencia
     )
 
-    # Si X_A y X_B son variables Poisson independientes, la diferencia D = X_A - X_B sigue una distribución
-    # de Skellam con parámetros lambda_a y lambda_b.
-    # D > 0: victoria del equipo A
-    # D = 0: empate
-    # D < 0: victoria del equipo B
+    return lambda_a, lambda_b
+
+
+def obtener_probabilidades_partido(
+    elo_a,
+    elo_b,
+    neutral=True
+):
+    """
+    Calcula las probabilidades de victoria, empate y derrota
+    mediante la distribución de Skellam.
+    """
+
+    lambda_a, lambda_b = obtener_lambdas(
+        elo_a,
+        elo_b,
+        neutral
+    )
+
+    # Diferencia de goles:
+    # D = Goles A - Goles B
+
+    # Empate: D = 0
     p_empate = skellam.pmf(
         0,
         lambda_a,
         lambda_b
     )
 
+    # Victoria B: D < 0
     p_gana_b = skellam.cdf(
         -1,
         lambda_a,
         lambda_b
     )
 
+    # Victoria A: D > 0
     p_gana_a = 1 - skellam.cdf(
         0,
         lambda_a,
@@ -61,47 +90,112 @@ def obtener_probabilidades_partido(
     )
 
 
-# Simula el resultado de un partido utilizando las probabilidades obtenidas con el modelo Elo-Poisson-Skellam.
+# SIMULACIÓN DE MARCADOR
+
+def simular_marcador(
+    elo_a,
+    elo_b,
+    neutral=True
+):
+    """
+    Genera un marcador utilizando dos distribuciones Poisson
+    independientes con las lambdas calculadas a partir del
+    modelo Elo-Poisson.
+    """
+
+    lambda_a, lambda_b = obtener_lambdas(
+        elo_a,
+        elo_b,
+        neutral
+    )
+
+    # Generación de goles.
+    goles_a = np.random.poisson(lambda_a)
+    goles_b = np.random.poisson(lambda_b)
+
+    return (
+        int(goles_a),
+        int(goles_b),
+        lambda_a,
+        lambda_b
+    )
+
+# SIMULACIÓN COMPLETA DE PARTIDO
+
 def simular_partido(
     equipo_a,
     equipo_b,
     elo_dict,
     neutral=True
 ):
+    """
+    Simula un partido completo.
+
+    Devuelve:
+        puntos_a
+        puntos_b
+        goles_a
+        goles_b
+        resultado
+    """
+
     elo_a = elo_dict[equipo_a]
     elo_b = elo_dict[equipo_b]
 
-    p_a, p_empate, p_b = obtener_probabilidades_partido(
+    goles_a, goles_b, lambda_a, lambda_b = simular_marcador(
         elo_a,
         elo_b,
         neutral
     )
 
-    aleatorio = random.random()
+    # Determinación del resultado.
+    if goles_a > goles_b:
 
-    # Asigna el resultado mediante una variable uniforme U(0,1) y los intervalos definidos por las probabilidades calculadas.
-    if aleatorio < p_a:
-        return (
-            3,
-            0,
-            f"Victoria {equipo_a}"
+        puntos_a = 3
+        puntos_b = 0
+
+        resultado = (
+            f"Victoria {equipo_a} "
+            f"{goles_a}-{goles_b}"
         )
 
-    elif aleatorio < p_a + p_empate:
-        return (
-            1,
-            1,
-            "Empate"
+    elif goles_a < goles_b:
+
+        puntos_a = 0
+        puntos_b = 3
+
+        resultado = (
+            f"Victoria {equipo_b} "
+            f"{goles_b}-{goles_a}"
         )
 
     else:
-        return (
-            0,
-            3,
-            f"Victoria {equipo_b}"
+
+        puntos_a = 1
+        puntos_b = 1
+
+        resultado = (
+            f"Empate "
+            f"{goles_a}-{goles_b}"
         )
 
+    return (
+        puntos_a,
+        puntos_b,
+        goles_a,
+        goles_b,
+        resultado
+    )
+
+
+# PROGRAMA DE PRUEBA
+
 if __name__ == "__main__":
+
+    print("=" * 70)
+    print("PRUEBA DEL MODELO ELO-POISSON-SKELLAM")
+    print("=" * 70)
+
     elo_dict = {
         "Cabo Verde": 1578,
         "Uruguay": 1892,
@@ -115,18 +209,76 @@ if __name__ == "__main__":
         "Arabia Saudita"
     ]
 
+    # Semilla para reproducibilidad.
+    random.seed(42)
+    np.random.seed(42)
+
     for rival in rivales:
-        p_cv, p_empate, p_rival = obtener_probabilidades_partido(
-            elo_dict["Cabo Verde"],
-            elo_dict[rival],
+
+        print(f"\n{'-' * 60}")
+        print(f"Cabo Verde vs {rival}")
+
+        elo_cv = elo_dict["Cabo Verde"]
+        elo_rival = elo_dict[rival]
+
+        lambda_cv, lambda_rival = obtener_lambdas(
+            elo_cv,
+            elo_rival,
             neutral=True
         )
 
-        print(f"\nCabo Verde vs {rival}")
-        print(f"Victoria Cabo Verde: {p_cv * 100:.2f}%")
-        print(f"Empate: {p_empate * 100:.2f}%")
-        print(f"Victoria {rival}: {p_rival * 100:.2f}%")
+        print(f"Elo Cabo Verde: {elo_cv}")
+        print(f"Elo {rival}: {elo_rival}")
+
         print(
-            f"Total: "
-            f"{(p_cv + p_empate + p_rival) * 100:.2f}%"
+            f"Lambda Cabo Verde: "
+            f"{lambda_cv:.4f}"
+        )
+
+        print(
+            f"Lambda {rival}: "
+            f"{lambda_rival:.4f}"
+        )
+
+        p_cv, p_empate, p_rival = obtener_probabilidades_partido(
+            elo_cv,
+            elo_rival,
+            neutral=True
+        )
+
+        print(
+            f"Prob. victoria Cabo Verde: "
+            f"{p_cv * 100:.2f}%"
+        )
+
+        print(
+            f"Prob. empate: "
+            f"{p_empate * 100:.2f}%"
+        )
+
+        print(
+            f"Prob. victoria {rival}: "
+            f"{p_rival * 100:.2f}%"
+        )
+
+        puntos_cv, puntos_rival, goles_cv, goles_rival, resultado = (
+            simular_partido(
+                "Cabo Verde",
+                rival,
+                elo_dict,
+                neutral=True
+            )
+        )
+
+        print(
+            f"\nMarcador simulado: "
+            f"Cabo Verde {goles_cv}-{goles_rival} {rival}"
+        )
+
+        print(f"Resultado: {resultado}")
+
+        print(
+            f"Puntos: "
+            f"Cabo Verde={puntos_cv}, "
+            f"{rival}={puntos_rival}"
         )

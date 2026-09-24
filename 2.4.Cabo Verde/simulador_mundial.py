@@ -1,118 +1,256 @@
-import os
 import random
+import numpy as np
 import pandas as pd
+from itertools import combinations
 
 from simulacion_base import simular_partido
 
-# Selecciones que conforman el grupo mundialista de Cabo Verde.
-EQUIPOS_GRUPO = [
-    "Cabo Verde",
-    "Uruguay",
-    "España",
-    "Arabia Saudita"
-]
 
-# Carga los ratings Elo y verifica que estén disponibles las cuatro selecciones que conforman el grupo.
-def cargar_elo_mundial(
-    ruta="2.4.Cabo Verde/Data/elo_limpio.csv",
-    ruta_alt="Data/elo_limpio.csv"
+# CONFIGURACIÓN
+
+N_SIMULACIONES = 100000
+
+
+# GRUPOS DEL MUNDIAL
+
+GRUPOS = {
+    "A": [
+        "México",
+        "Sudáfrica",
+        "Corea del Sur",
+        "República Checa"
+    ],
+
+    "B": [
+        "Suiza",
+        "Canadá",
+        "Bosnia y Herzegovina",
+        "Catar"
+    ],
+
+    "C": [
+        "Brasil",
+        "Marruecos",
+        "Escocia",
+        "Haití"
+    ],
+
+    "D": [
+        "Estados Unidos",
+        "Australia",
+        "Paraguay",
+        "Turquía"
+    ],
+
+    "E": [
+        "Alemania",
+        "Costa de Marfil",
+        "Ecuador",
+        "Curazao"
+    ],
+
+    "F": [
+        "Países Bajos",
+        "Japón",
+        "Suecia",
+        "Túnez"
+    ],
+
+    "G": [
+        "Bélgica",
+        "Egipto",
+        "Irán",
+        "Nueva Zelanda"
+    ],
+
+    "H": [
+        "España",
+        "Cabo Verde",
+        "Uruguay",
+        "Arabia Saudita"
+    ],
+
+    "I": [
+        "Francia",
+        "Noruega",
+        "Senegal",
+        "Irak"
+    ],
+
+    "J": [
+        "Argentina",
+        "Austria",
+        "Argelia",
+        "Jordania"
+    ],
+
+    "K": [
+        "Colombia",
+        "Portugal",
+        "República Democrática del Congo",
+        "Uzbekistán"
+    ],
+
+    "L": [
+        "Inglaterra",
+        "Croacia",
+        "Ghana",
+        "Panamá"
+    ]
+}
+
+
+# CARGAR ELO
+
+def cargar_elo(
+    ruta="Data/elo_limpio.csv"
 ):
-    path = ruta if os.path.exists(ruta) else ruta_alt
 
-    if not os.path.exists(path):
-        raise FileNotFoundError(
-            f"No se encontró el archivo de Elo en: {path}"
-        )
+    df_elo = pd.read_csv(ruta)
 
-    df_elo = pd.read_csv(path)
-
-    dict_elo = dict(
+    elo_dict = dict(
         zip(
             df_elo["equipo"],
             df_elo["elo_rating"]
         )
     )
 
+    return elo_dict
+
+
+# VERIFICAR LOS 48 EQUIPOS
+
+def verificar_equipos(elo_dict):
+
+    equipos_mundial = []
+
+    for grupo in GRUPOS.values():
+
+        equipos_mundial.extend(grupo)
+
     faltantes = [
         equipo
-        for equipo in EQUIPOS_GRUPO
-        if equipo not in dict_elo
+        for equipo in equipos_mundial
+        if equipo not in elo_dict
     ]
 
     if faltantes:
+
+        print("\nERROR: faltan ratings Elo para:")
+
+        for equipo in faltantes:
+            print(f"   - {equipo}")
+
         raise ValueError(
-            f"Faltan ratings Elo para los siguientes equipos: {faltantes}"
+            "No se puede ejecutar la simulación "
+            "porque faltan ratings Elo."
         )
 
-    return {
-        equipo: dict_elo[equipo]
-        for equipo in EQUIPOS_GRUPO
-    }
+    print(
+        f"\nVerificación completada: "
+        f"{len(equipos_mundial)} equipos encontrados."
+    )
 
-# Inicializa la tabla de posiciones del grupo.
-def crear_tabla():
-    return {
-        equipo: {
+
+# CREAR TABLA
+
+def crear_tabla(equipos):
+
+    tabla = {}
+
+    for equipo in equipos:
+
+        tabla[equipo] = {
+
             "PJ": 0,
             "G": 0,
             "E": 0,
             "P": 0,
+            "GF": 0,
+            "GC": 0,
+            "DG": 0,
             "Pts": 0
         }
-        for equipo in EQUIPOS_GRUPO
-    }
 
-# Actualiza la tabla de posiciones después de cada partido.
+    return tabla
+
+
+# ACTUALIZAR TABLA
+
 def actualizar_tabla(
     tabla,
     equipo_a,
     equipo_b,
     puntos_a,
-    puntos_b
+    puntos_b,
+    goles_a,
+    goles_b
 ):
+
     tabla[equipo_a]["PJ"] += 1
     tabla[equipo_b]["PJ"] += 1
+
+    tabla[equipo_a]["GF"] += goles_a
+    tabla[equipo_a]["GC"] += goles_b
+
+    tabla[equipo_b]["GF"] += goles_b
+    tabla[equipo_b]["GC"] += goles_a
+
+    tabla[equipo_a]["DG"] = (
+        tabla[equipo_a]["GF"]
+        -
+        tabla[equipo_a]["GC"]
+    )
+
+    tabla[equipo_b]["DG"] = (
+        tabla[equipo_b]["GF"]
+        -
+        tabla[equipo_b]["GC"]
+    )
 
     tabla[equipo_a]["Pts"] += puntos_a
     tabla[equipo_b]["Pts"] += puntos_b
 
     if puntos_a == 3:
+
         tabla[equipo_a]["G"] += 1
         tabla[equipo_b]["P"] += 1
 
     elif puntos_b == 3:
+
         tabla[equipo_b]["G"] += 1
         tabla[equipo_a]["P"] += 1
 
     else:
+
         tabla[equipo_a]["E"] += 1
         tabla[equipo_b]["E"] += 1
 
 
-# Simula los seis partidos del grupo mundialista.
-# Todos los encuentros se consideran en sede neutral, por lo que no se aplica el efecto de localía gamma.
-def simular_grupo_mundial(
-    elo_dict,
-    semilla=None
+# SIMULAR UN GRUPO
+
+def simular_grupo(
+    equipos,
+    elo_dict
 ):
-    if semilla is not None:
-        random.seed(semilla)
 
-    tabla = crear_tabla()
+    tabla = crear_tabla(equipos)
 
-    partidos = [
-        ("Cabo Verde", "Uruguay"),
-        ("Cabo Verde", "España"),
-        ("Cabo Verde", "Arabia Saudita"),
-        ("Uruguay", "España"),
-        ("Uruguay", "Arabia Saudita"),
-        ("España", "Arabia Saudita")
-    ]
+    partidos = list(
+        combinations(equipos, 2)
+    )
 
     resultados_partidos = []
 
     for equipo_a, equipo_b in partidos:
-        puntos_a, puntos_b, resultado = simular_partido(
+
+        (
+            puntos_a,
+            puntos_b,
+            goles_a,
+            goles_b,
+            resultado
+        ) = simular_partido(
             equipo_a,
             equipo_b,
             elo_dict,
@@ -124,163 +262,375 @@ def simular_grupo_mundial(
             equipo_a,
             equipo_b,
             puntos_a,
-            puntos_b
+            puntos_b,
+            goles_a,
+            goles_b
         )
 
         resultados_partidos.append(
-            f"{equipo_a} vs {equipo_b} -> {resultado}"
+            {
+                "Equipo A": equipo_a,
+                "Equipo B": equipo_b,
+                "Goles A": goles_a,
+                "Goles B": goles_b,
+                "Resultado": resultado
+            }
         )
 
     return tabla, resultados_partidos
 
 
-# Convierte la tabla del grupo en un DataFrame y la ordena de mayor a menor cantidad de puntos.
-def convertir_tabla_dataframe(tabla):
-    df_tabla = pd.DataFrame.from_dict(
-        tabla,
-        orient="index"
-    )
+# ORDENAR TABLA
 
-    df_tabla.index.name = "Equipo"
-
-    return df_tabla.sort_values(
-        by="Pts",
-        ascending=False
-    ).reset_index()
-
-# Determina el intervalo de posiciones posibles de Cabo Verde utilizando únicamente los puntos obtenidos.
-# Si existen equipos empatados en puntos, no se fuerza un desempate porque el modelo no simula marcadores ni diferencia de goles.
-def clasificar_posicion_cabo_verde(tabla):
-    puntos_cv = tabla["Cabo Verde"]["Pts"]
-
-    equipos_superiores = sum(
-        1
-        for equipo in EQUIPOS_GRUPO
-        if tabla[equipo]["Pts"] > puntos_cv
-    )
-
-    equipos_igualados = sum(
-        1
-        for equipo in EQUIPOS_GRUPO
-        if tabla[equipo]["Pts"] == puntos_cv
-    )
-
-    posicion_minima = equipos_superiores + 1
-    posicion_maxima = (
-        equipos_superiores +
-        equipos_igualados
-    )
-
-    if equipos_igualados == 1:
-        return f"{posicion_minima}°"
-
-    return (
-        f"Empate "
-        f"{posicion_minima}°-{posicion_maxima}°"
-    )
-
-# Repite la simulación completa del grupo para estimar la distribución de posiciones de Cabo Verde mediante Monte Carlo.
-def monte_carlo_grupo(
-    elo_dict,
-    n_simulaciones=100000
+def ordenar_grupo(
+    tabla,
+    elo_dict
 ):
-    resultados = {}
 
-    for _ in range(n_simulaciones):
-        tabla, _ = simular_grupo_mundial(
+    equipos = list(tabla.keys())
+
+    equipos.sort(
+        key=lambda equipo: (
+
+            tabla[equipo]["Pts"],
+
+            tabla[equipo]["DG"],
+
+            tabla[equipo]["GF"],
+
+            elo_dict[equipo]
+
+        ),
+
+        reverse=True
+    )
+
+    return equipos
+
+
+# CONVERTIR TABLA A DATAFRAME
+
+def convertir_tabla_dataframe(
+    tabla,
+    elo_dict
+):
+
+    equipos_ordenados = ordenar_grupo(
+        tabla,
+        elo_dict
+    )
+
+    filas = []
+
+    for posicion, equipo in enumerate(
+        equipos_ordenados,
+        start=1
+    ):
+
+        fila = tabla[equipo].copy()
+
+        fila["Pos"] = posicion
+        fila["Equipo"] = equipo
+
+        filas.append(fila)
+
+    columnas = [
+        "Pos",
+        "Equipo",
+        "PJ",
+        "G",
+        "E",
+        "P",
+        "GF",
+        "GC",
+        "DG",
+        "Pts"
+    ]
+
+    return pd.DataFrame(
+        filas,
+        columns=columnas
+    )
+
+
+# SIMULAR LOS 12 GRUPOS
+
+def simular_mundial(
+    elo_dict
+):
+
+    resultados_grupos = {}
+
+    terceros = []
+
+    for grupo, equipos in GRUPOS.items():
+
+        tabla, partidos = simular_grupo(
+            equipos,
             elo_dict
         )
 
-        posicion = clasificar_posicion_cabo_verde(
-            tabla
+        ordenados = ordenar_grupo(
+            tabla,
+            elo_dict
         )
 
-        resultados[posicion] = (
-            resultados.get(posicion, 0) + 1
+        resultados_grupos[grupo] = {
+            "tabla": tabla,
+            "partidos": partidos
+        }
+
+        # Tercer lugar del grupo
+
+        equipo_tercero = ordenados[2]
+
+        datos_tercero = tabla[
+            equipo_tercero
+        ].copy()
+
+        datos_tercero["Equipo"] = (
+            equipo_tercero
         )
 
-    porcentajes = {
-        posicion:
-        cantidad / n_simulaciones * 100
-        for posicion, cantidad
-        in resultados.items()
-    }
+        datos_tercero["Grupo"] = grupo
 
-    return porcentajes
+        terceros.append(
+            datos_tercero
+        )
+
+    return resultados_grupos, terceros
 
 
-if __name__ == "__main__":
-    print(
-        "SIMULADOR GENERAL DEL GRUPO MUNDIALISTA"
+# ORDENAR LOS 12 TERCEROS
+
+def ordenar_terceros(
+    terceros,
+    elo_dict
+):
+
+    terceros_ordenados = sorted(
+
+        terceros,
+
+        key=lambda tercero: (
+
+            tercero["Pts"],
+
+            tercero["DG"],
+
+            tercero["GF"],
+
+            elo_dict[
+                tercero["Equipo"]
+            ]
+
+        ),
+
+        reverse=True
     )
 
-    try:
-        elo_dict = cargar_elo_mundial()
+    return terceros_ordenados
 
-        print(
-            "\nRatings Elo del Grupo Mundialista cargados:"
-        )
 
-        for equipo, rating in elo_dict.items():
+# ============================================================
+# DATAFRAME DE LOS 12 TERCEROS
+# ============================================================
+
+def terceros_dataframe(
+    terceros,
+    elo_dict
+):
+
+    terceros_ordenados = ordenar_terceros(
+        terceros,
+        elo_dict
+    )
+
+    filas = []
+
+    for posicion, tercero in enumerate(
+        terceros_ordenados,
+        start=1
+    ):
+
+        filas.append({
+
+            "Posicion": posicion,
+
+            "Grupo": tercero["Grupo"],
+
+            "Equipo": tercero["Equipo"],
+
+            "PJ": tercero["PJ"],
+
+            "G": tercero["G"],
+
+            "E": tercero["E"],
+
+            "P": tercero["P"],
+
+            "GF": tercero["GF"],
+
+            "GC": tercero["GC"],
+
+            "DG": tercero["DG"],
+
+            "Pts": tercero["Pts"]
+
+        })
+
+    return pd.DataFrame(
+        filas
+    )
+
+
+# PROGRAMA PRINCIPAL
+
+if __name__ == "__main__":
+
+    print("=" * 75)
+    print("SIMULACIÓN COMPLETA DE LOS 12 GRUPOS")
+    print("COPA MUNDIAL 2026")
+    print("=" * 75)
+
+    # Semillas
+
+    random.seed(42)
+    np.random.seed(42)
+
+    # Cargar Elo
+
+    elo_dict = cargar_elo()
+
+    verificar_equipos(
+        elo_dict
+    )
+
+    # Mostrar ratings utilizados
+
+    print("\nRATINGS ELO DE LOS 48 EQUIPOS:")
+
+    for grupo, equipos in GRUPOS.items():
+
+        print(f"\nGrupo {grupo}:")
+
+        for equipo in equipos:
+
             print(
-                f"   • {equipo:<15}: "
-                f"{rating} Elo"
+                f"   {equipo:<35} "
+                f"{elo_dict[equipo]:.0f}"
             )
 
-        # Ejecuta una simulación individual reproducible para verificar el funcionamiento del grupo.
-        tabla, partidos_res = simular_grupo_mundial(
-            elo_dict,
-            semilla=42
+    # Una simulación completa
+
+    resultados_grupos, terceros = (
+        simular_mundial(
+            elo_dict
+        )
+    )
+
+    # Mostrar cada grupo
+
+    for grupo in GRUPOS:
+
+        print("\n")
+        print("-" * 75)
+        print(f"GRUPO {grupo}")
+        print("-" * 75)
+
+        datos = resultados_grupos[
+            grupo
+        ]
+
+        for partido in datos["partidos"]:
+
+            print(
+                f"{partido['Equipo A']} "
+                f"{partido['Goles A']}-"
+                f"{partido['Goles B']} "
+                f"{partido['Equipo B']}"
+            )
+
+        print("\nTabla:")
+
+        df_grupo = convertir_tabla_dataframe(
+            datos["tabla"],
+            elo_dict
         )
 
         print(
-            "\nResultados de los 6 Partidos Simulados "
-            "(Semilla 42):"
-        )
-
-        for partido in partidos_res:
-            print(f"   {partido}")
-
-        df_final = convertir_tabla_dataframe(
-            tabla
-        )
-
-        print("\nTabla Final del Grupo:")
-        print(
-            df_final.to_string(
+            df_grupo.to_string(
                 index=False
             )
         )
 
-        print(
-            "\nNota: si dos o más equipos terminan con los mismos puntos, el modelo no aplica criterios de desempate porque no simula marcadores.")
+    # Terceros
 
-        # Repite el grupo completo para estimar la distribución de posiciones de Cabo Verde.
-        n_simulaciones = 100000
+    print("\n")
+    print("=" * 75)
+    print("LOS 12 TERCEROS LUGARES")
+    print("=" * 75)
 
-        print(
-            f"\nEJECUTANDO MONTE CARLO DEL GRUPO "
-            f"({n_simulaciones:,} simulaciones)..."
+    df_terceros = terceros_dataframe(
+        terceros,
+        elo_dict
+    )
+
+    print(
+        df_terceros.to_string(
+            index=False
+        )
+    )
+
+    # Cabo Verde
+
+    fila_cv = df_terceros[
+        df_terceros["Equipo"]
+        == "Cabo Verde"
+    ]
+
+    if not fila_cv.empty:
+
+        posicion_cv = int(
+            fila_cv.iloc[0]["Posicion"]
         )
 
-        random.seed(42)
+        print("\n")
+        print("=" * 75)
+        print("CABO VERDE")
+        print("=" * 75)
 
-        resultados_mc = monte_carlo_grupo(
-            elo_dict,
-            n_simulaciones
+        print(
+            f"Cabo Verde terminó "
+            f"{posicion_cv}° entre los 12 terceros."
         )
 
-        print("\nPROBABILIDAD DE POSICIÓN DE CABO VERDE:")
+        if posicion_cv <= 8:
 
-        for posicion, porcentaje in sorted(
-            resultados_mc.items()
-        ):
             print(
-                f"{posicion:<20}: "
-                f"{porcentaje:.2f}%"
+                "En esta simulación, Cabo Verde "
+                "estaría dentro de los ocho mejores terceros."
             )
 
-    except Exception as e:
-        print(
-            f"\nError durante la ejecución: {e}"
-        )
+        else:
+
+            print(
+                "En esta simulación, Cabo Verde "
+                "no estaría dentro de los ocho mejores terceros."
+            )
+
+    # Guardar CSV
+
+    df_terceros.to_csv(
+        "Data/terceros_una_simulacion.csv",
+        index=False
+    )
+
+    print("\n")
+    print(
+        "Archivo generado:"
+    )
+
+    print(
+        "Data/terceros_una_simulacion.csv"
+    )

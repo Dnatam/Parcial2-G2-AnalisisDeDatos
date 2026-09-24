@@ -1,10 +1,15 @@
 import random
+import numpy as np
 import pandas as pd
-import os
 import matplotlib.pyplot as plt
 
-from simulacion_base import simular_partido
+from simulacion_base import (
+    obtener_lambdas,
+    simular_partido
+)
 
+
+# CONFIGURACIÓN
 
 EQUIPOS_GRUPO = [
     "Cabo Verde",
@@ -13,9 +18,13 @@ EQUIPOS_GRUPO = [
     "Arabia Saudita"
 ]
 
+N_SIMULACIONES = 100000
 
-# Carga los ratings Elo necesarios para el grupo mundialista
+
+# CARGAR ELO
+
 def cargar_elo(ruta="Data/elo_limpio.csv"):
+
     df_elo = pd.read_csv(ruta)
 
     elo_dict = dict(
@@ -39,485 +48,719 @@ def cargar_elo(ruta="Data/elo_limpio.csv"):
     return elo_dict
 
 
-# Crea una tabla vacía para el grupo
+# CREAR TABLA
+
 def crear_tabla():
+
     tabla = {}
 
     for equipo in EQUIPOS_GRUPO:
+
         tabla[equipo] = {
             "PJ": 0,
             "G": 0,
             "E": 0,
             "P": 0,
+            "GF": 0,
+            "GC": 0,
+            "DG": 0,
             "Pts": 0
         }
 
     return tabla
 
 
-# Actualiza la tabla después de un partido
+# ACTUALIZAR TABLA
+
 def actualizar_tabla(
     tabla,
     equipo_a,
     equipo_b,
     puntos_a,
-    puntos_b
+    puntos_b,
+    goles_a,
+    goles_b
 ):
+
     tabla[equipo_a]["PJ"] += 1
     tabla[equipo_b]["PJ"] += 1
+
+    tabla[equipo_a]["GF"] += goles_a
+    tabla[equipo_a]["GC"] += goles_b
+
+    tabla[equipo_b]["GF"] += goles_b
+    tabla[equipo_b]["GC"] += goles_a
+
+    tabla[equipo_a]["DG"] = (
+        tabla[equipo_a]["GF"]
+        - tabla[equipo_a]["GC"]
+    )
+
+    tabla[equipo_b]["DG"] = (
+        tabla[equipo_b]["GF"]
+        - tabla[equipo_b]["GC"]
+    )
 
     tabla[equipo_a]["Pts"] += puntos_a
     tabla[equipo_b]["Pts"] += puntos_b
 
     if puntos_a == 3:
+
         tabla[equipo_a]["G"] += 1
         tabla[equipo_b]["P"] += 1
 
     elif puntos_b == 3:
+
         tabla[equipo_b]["G"] += 1
         tabla[equipo_a]["P"] += 1
 
     else:
+
         tabla[equipo_a]["E"] += 1
         tabla[equipo_b]["E"] += 1
 
 
-# Convierte la tabla a DataFrame y la ordena por puntos
-def convertir_tabla_dataframe(tabla):
-    df_tabla = pd.DataFrame.from_dict(
+# SIMULAR UN EMPATE CONDICIONADO
+
+def simular_empate(
+    equipo_a,
+    equipo_b,
+    elo_dict,
+    neutral=True
+):
+    """
+    Genera un marcador de empate utilizando las distribuciones
+    Poisson del modelo.
+
+    Se repite la generación hasta obtener el mismo número
+    de goles para ambos equipos.
+
+    Esto permite representar un empate forzado sin elegir
+    arbitrariamente 0-0, 1-1, 2-2, etc.
+    """
+
+    elo_a = elo_dict[equipo_a]
+    elo_b = elo_dict[equipo_b]
+
+    lambda_a, lambda_b = obtener_lambdas(
+        elo_a,
+        elo_b,
+        neutral
+    )
+
+    while True:
+
+        goles_a = np.random.poisson(
+            lambda_a
+        )
+
+        goles_b = np.random.poisson(
+            lambda_b
+        )
+
+        if goles_a == goles_b:
+
+            return (
+                1,
+                1,
+                int(goles_a),
+                int(goles_b),
+                f"Empate {goles_a}-{goles_b}"
+            )
+
+
+# ============================================================
+# SIMULAR UNA VICTORIA CONDICIONADA
+# ============================================================
+
+def simular_victoria(
+    equipo_a,
+    equipo_b,
+    elo_dict,
+    neutral=True
+):
+    """
+    Genera un marcador condicionado a que el equipo A gane.
+    """
+
+    elo_a = elo_dict[equipo_a]
+    elo_b = elo_dict[equipo_b]
+
+    lambda_a, lambda_b = obtener_lambdas(
+        elo_a,
+        elo_b,
+        neutral
+    )
+
+    while True:
+
+        goles_a = np.random.poisson(
+            lambda_a
+        )
+
+        goles_b = np.random.poisson(
+            lambda_b
+        )
+
+        if goles_a > goles_b:
+
+            return (
+                3,
+                0,
+                int(goles_a),
+                int(goles_b),
+                f"Victoria {equipo_a} {goles_a}-{goles_b}"
+            )
+
+
+# SIMULAR EL RESTO DE PARTIDOS DEL GRUPO
+
+def simular_partido_normal(
+    tabla,
+    equipo_a,
+    equipo_b,
+    elo_dict
+):
+
+    resultado = simular_partido(
+        equipo_a,
+        equipo_b,
+        elo_dict,
+        neutral=True
+    )
+
+    (
+        puntos_a,
+        puntos_b,
+        goles_a,
+        goles_b,
+        texto
+    ) = resultado
+
+    actualizar_tabla(
         tabla,
-        orient="index"
+        equipo_a,
+        equipo_b,
+        puntos_a,
+        puntos_b,
+        goles_a,
+        goles_b
     )
 
-    df_tabla.index.name = "Equipo"
-
-    return df_tabla.sort_values(
-        by="Pts",
-        ascending=False
-    )
+    return texto
 
 
-# Fija los tres empates de Cabo Verde
-def aplicar_empates_cabo_verde(tabla):
+# APLICAR LOS TRES EMPATES DE CABO VERDE
+
+def aplicar_empates_cabo_verde(
+    tabla,
+    elo_dict
+):
+
     rivales = [
         "Uruguay",
         "España",
         "Arabia Saudita"
     ]
 
+    resultados = {}
+
     for rival in rivales:
+
+        (
+            puntos_cv,
+            puntos_rival,
+            goles_cv,
+            goles_rival,
+            texto
+        ) = simular_empate(
+            "Cabo Verde",
+            rival,
+            elo_dict,
+            neutral=True
+        )
+
         actualizar_tabla(
             tabla,
             "Cabo Verde",
             rival,
-            1,
-            1
+            puntos_cv,
+            puntos_rival,
+            goles_cv,
+            goles_rival
         )
 
+        resultados[
+            f"Cabo Verde-{rival}"
+        ] = texto
 
-# Escenario 1: Uruguay empata con España
-def escenario_uruguay_empata_espana(elo_dict):
-    tabla = crear_tabla()
-
-    # Cabo Verde empata sus tres partidos
-    aplicar_empates_cabo_verde(tabla)
-
-    # Uruguay empata con España
-    actualizar_tabla(
-        tabla,
-        "Uruguay",
-        "España",
-        1,
-        1
-    )
-
-    # Uruguay vs Arabia Saudita
-    puntos_uru, puntos_ars, resultado_uru_ars = simular_partido(
-        "Uruguay",
-        "Arabia Saudita",
-        elo_dict
-    )
-
-    actualizar_tabla(
-        tabla,
-        "Uruguay",
-        "Arabia Saudita",
-        puntos_uru,
-        puntos_ars
-    )
-
-    # España vs Arabia Saudita
-    puntos_esp, puntos_ars, resultado_esp_ars = simular_partido(
-        "España",
-        "Arabia Saudita",
-        elo_dict
-    )
-
-    actualizar_tabla(
-        tabla,
-        "España",
-        "Arabia Saudita",
-        puntos_esp,
-        puntos_ars
-    )
-
-    return (
-        tabla,
-        resultado_uru_ars,
-        resultado_esp_ars
-    )
+    return resultados
 
 
-# Escenario 2: Uruguay derrota a España
-def escenario_uruguay_gana_espana(elo_dict):
-    tabla = crear_tabla()
+# ESCENARIO 1:
+# URUGUAY EMPATA CON ESPAÑA
 
-    # Cabo Verde empata sus tres partidos
-    aplicar_empates_cabo_verde(tabla)
-
-    # Uruguay derrota a España
-    actualizar_tabla(
-        tabla,
-        "Uruguay",
-        "España",
-        3,
-        0
-    )
-
-    # Uruguay vs Arabia Saudita
-    puntos_uru, puntos_ars, resultado_uru_ars = simular_partido(
-        "Uruguay",
-        "Arabia Saudita",
-        elo_dict
-    )
-
-    actualizar_tabla(
-        tabla,
-        "Uruguay",
-        "Arabia Saudita",
-        puntos_uru,
-        puntos_ars
-    )
-
-    # España vs Arabia Saudita
-    puntos_esp, puntos_ars, resultado_esp_ars = simular_partido(
-        "España",
-        "Arabia Saudita",
-        elo_dict
-    )
-
-    actualizar_tabla(
-        tabla,
-        "España",
-        "Arabia Saudita",
-        puntos_esp,
-        puntos_ars
-    )
-
-    return (
-        tabla,
-        resultado_uru_ars,
-        resultado_esp_ars
-    )
-
-
-# Determina la posición de Cabo Verde únicamente por puntos
-def clasificar_posicion_cabo_verde(tabla):
-    puntos_cv = tabla["Cabo Verde"]["Pts"]
-
-    equipos_superiores = sum(
-        1
-        for equipo in EQUIPOS_GRUPO
-        if tabla[equipo]["Pts"] > puntos_cv
-    )
-
-    equipos_igualados = sum(
-        1
-        for equipo in EQUIPOS_GRUPO
-        if tabla[equipo]["Pts"] == puntos_cv
-    )
-
-    posicion_minima = equipos_superiores + 1
-    posicion_maxima = equipos_superiores + equipos_igualados
-
-    if equipos_igualados == 1:
-        return f"{posicion_minima}°"
-
-    return (
-        f"Empate {posicion_minima}°-"
-        f"{posicion_maxima}°"
-    )
-
-
-# Ejecuta Monte Carlo para uno de los escenarios condicionados
-def monte_carlo_escenario(
-    elo_dict,
-    escenario,
-    n_simulaciones=100000
+def escenario_uruguay_empata_espana(
+    elo_dict
 ):
-    resultados = {}
 
-    for _ in range(n_simulaciones):
+    tabla = crear_tabla()
 
-        if escenario == "empate":
-            tabla, _, _ = escenario_uruguay_empata_espana(
-                elo_dict
-            )
+    resultados = aplicar_empates_cabo_verde(
+        tabla,
+        elo_dict
+    )
 
-        elif escenario == "victoria_uruguay":
-            tabla, _, _ = escenario_uruguay_gana_espana(
-                elo_dict
-            )
+    (
+        puntos_uru,
+        puntos_esp,
+        goles_uru,
+        goles_esp,
+        resultado_uru_esp
+    ) = simular_empate(
+        "Uruguay",
+        "España",
+        elo_dict,
+        neutral=True
+    )
 
-        else:
-            raise ValueError(
-                "Escenario no reconocido"
-            )
+    actualizar_tabla(
+        tabla,
+        "Uruguay",
+        "España",
+        puntos_uru,
+        puntos_esp,
+        goles_uru,
+        goles_esp
+    )
+
+    resultados[
+        "Uruguay-España"
+    ] = resultado_uru_esp
+
+    # Uruguay vs Arabia Saudita
+    resultado_1 = simular_partido_normal(
+        tabla,
+        "Uruguay",
+        "Arabia Saudita",
+        elo_dict
+    )
+
+    resultados[
+        "Uruguay-Arabia Saudita"
+    ] = resultado_1
+
+    # España vs Arabia Saudita
+    resultado_2 = simular_partido_normal(
+        tabla,
+        "España",
+        "Arabia Saudita",
+        elo_dict
+    )
+
+    resultados[
+        "España-Arabia Saudita"
+    ] = resultado_2
+
+    return tabla, resultados
+
+
+# ESCENARIO 2:
+# URUGUAY VENCE A ESPAÑA
+
+def escenario_uruguay_gana_espana(
+    elo_dict
+):
+
+    tabla = crear_tabla()
+
+    resultados = aplicar_empates_cabo_verde(
+        tabla,
+        elo_dict
+    )
+
+    (
+        puntos_uru,
+        puntos_esp,
+        goles_uru,
+        goles_esp,
+        resultado_uru_esp
+    ) = simular_victoria(
+        "Uruguay",
+        "España",
+        elo_dict,
+        neutral=True
+    )
+
+    actualizar_tabla(
+        tabla,
+        "Uruguay",
+        "España",
+        puntos_uru,
+        puntos_esp,
+        goles_uru,
+        goles_esp
+    )
+
+    resultados[
+        "Uruguay-España"
+    ] = resultado_uru_esp
+
+    # Uruguay vs Arabia Saudita
+    resultado_1 = simular_partido_normal(
+        tabla,
+        "Uruguay",
+        "Arabia Saudita",
+        elo_dict
+    )
+
+    resultados[
+        "Uruguay-Arabia Saudita"
+    ] = resultado_1
+
+    # España vs Arabia Saudita
+    resultado_2 = simular_partido_normal(
+        tabla,
+        "España",
+        "Arabia Saudita",
+        elo_dict
+    )
+
+    resultados[
+        "España-Arabia Saudita"
+    ] = resultado_2
+
+    return tabla, resultados
+
+
+# ORDENAR TABLA
+
+def ordenar_tabla(tabla):
+
+    equipos = sorted(
+        tabla.keys(),
+        key=lambda equipo: (
+            tabla[equipo]["Pts"],
+            tabla[equipo]["DG"],
+            tabla[equipo]["GF"]
+        ),
+        reverse=True
+    )
+
+    return equipos
+
+
+# OBTENER POSICIÓN DE CABO VERDE
+
+def clasificar_posicion_cabo_verde(
+    tabla
+):
+
+    equipos_ordenados = ordenar_tabla(
+        tabla
+    )
+
+    posicion_cv = (
+        equipos_ordenados.index(
+            "Cabo Verde"
+        )
+        + 1
+    )
+
+    return f"{posicion_cv}°"
+
+
+# CONVERTIR TABLA
+
+def convertir_tabla_dataframe(
+    tabla
+):
+
+    df = pd.DataFrame.from_dict(
+        tabla,
+        orient="index"
+    )
+
+    df.index.name = "Equipo"
+
+    df = df.sort_values(
+        by=[
+            "Pts",
+            "DG",
+            "GF"
+        ],
+        ascending=[
+            False,
+            False,
+            False
+        ]
+    )
+
+    return df
+
+
+# MONTE CARLO - ESCENARIO 1
+
+def monte_carlo_escenario(
+    funcion_escenario,
+    elo_dict
+):
+
+    conteo_posiciones = {
+        "1°": 0,
+        "2°": 0,
+        "3°": 0,
+        "4°": 0
+    }
+
+    for _ in range(
+        N_SIMULACIONES
+    ):
+
+        tabla, _ = funcion_escenario(
+            elo_dict
+        )
 
         posicion = clasificar_posicion_cabo_verde(
             tabla
         )
 
+        conteo_posiciones[
+            posicion
+        ] += 1
+
+    resultados = {}
+
+    for posicion, cantidad in conteo_posiciones.items():
+
         resultados[posicion] = (
-            resultados.get(posicion, 0) + 1
+            cantidad
+            / N_SIMULACIONES
         )
 
-    porcentajes = {
-        posicion: cantidad / n_simulaciones * 100
-        for posicion, cantidad in resultados.items()
-    }
-
-    return porcentajes
+    return resultados
 
 
-# Muestra los resultados del Monte Carlo
-def mostrar_resultados_monte_carlo(
-    titulo,
+# MOSTRAR RESULTADOS
+
+def imprimir_resultados(
+    nombre_escenario,
     resultados
 ):
-    print(f"\n--- {titulo} ---")
-
-    for posicion, porcentaje in sorted(
-        resultados.items()
-    ):
-        print(
-            f"{posicion:<15}: "
-            f"{porcentaje:.2f}%"
-        )
-
-def graficar_resultados_monte_carlo(
-    resultados_empate,
-    resultados_victoria,
-    ruta="Graficas/escenarios_mundial_cabo_verde.png"
-):
-    categorias = [
-        "2°",
-        "3°",
-        "4°",
-        "Empate 2°-3°",
-        "Empate 1°-4°"
-    ]
-
-    valores_empate = [
-        resultados_empate.get(categoria, 0)
-        for categoria in categorias
-    ]
-
-    valores_victoria = [
-        resultados_victoria.get(categoria, 0)
-        for categoria in categorias
-    ]
-
-    x = range(len(categorias))
-    ancho = 0.35
-
-    plt.figure(figsize=(10, 6))
-
-    barras_empate = plt.bar(
-        [i - ancho / 2 for i in x],
-        valores_empate,
-        width=ancho,
-        label="Uruguay empata con España"
-    )
-
-    barras_victoria = plt.bar(
-        [i + ancho / 2 for i in x],
-        valores_victoria,
-        width=ancho,
-        label="Uruguay derrota a España"
-    )
-
-    plt.xticks(
-        list(x),
-        categorias,
-        rotation=15
-    )
-
-    plt.ylabel("Probabilidad (%)")
-    plt.xlabel("Posición de Cabo Verde")
-
-    plt.title(
-        "Posición de Cabo Verde con 3 empates bajo dos escenarios Uruguay-España"
-    )
-
-    plt.legend()
-    plt.grid(
-        axis="y",
-        alpha=0.3
-    )
-
-    # Mostrar el porcentaje encima de cada barra
-    for barras in [barras_empate, barras_victoria]:
-        for barra in barras:
-            altura = barra.get_height()
-
-            if altura > 0:
-                plt.text(
-                    barra.get_x() + barra.get_width() / 2,
-                    altura + 0.5,
-                    f"{altura:.2f}%",
-                    ha="center",
-                    va="bottom",
-                    fontsize=8
-                )
-
-    os.makedirs(
-        os.path.dirname(ruta),
-        exist_ok=True
-    )
-
-    plt.tight_layout()
-    plt.savefig(
-        ruta,
-        dpi=300
-    )
-
-    plt.close()
 
     print(
-        f"\nGráfica guardada en: {ruta}"
+        f"\n{'=' * 70}"
     )
 
+    print(
+        nombre_escenario
+    )
+
+    print(
+        f"{'=' * 70}"
+    )
+
+    for posicion in [
+        "1°",
+        "2°",
+        "3°",
+        "4°"
+    ]:
+
+        probabilidad = (
+            resultados[posicion]
+            * 100
+        )
+
+        print(
+            f"Cabo Verde termina {posicion}: "
+            f"{probabilidad:.2f}%"
+        )
+
+
+# PROGRAMA PRINCIPAL
+
 if __name__ == "__main__":
-    print("DÍA 7 - CABO VERDE: ESCENARIOS DEL GRUPO MUNDIALISTA")
+
+    print("=" * 70)
+    print("CABO VERDE - ESCENARIOS DEL MUNDIAL")
+    print("=" * 70)
+
+    random.seed(42)
+    np.random.seed(42)
 
     elo_dict = cargar_elo()
 
-    print("\nRatings Elo utilizados:")
+    # EJEMPLO DE UNA SIMULACIÓN INDIVIDUAL
 
-    for equipo in EQUIPOS_GRUPO:
-        print(
-            f"{equipo:<15}: "
-            f"{elo_dict[equipo]}"
-        )
-
-    # Escenario base
-    tabla = crear_tabla()
-
-    aplicar_empates_cabo_verde(tabla)
-
-    df_tabla = convertir_tabla_dataframe(
-        tabla
+    print(
+        "\nEJEMPLO DE SIMULACIÓN:"
     )
 
-    print("\n--- ESCENARIO BASE: CABO VERDE EMPATA SUS 3 PARTIDOS ---")
-
-    print(df_tabla.to_string())
-
-    # Ejemplo individual del escenario 1
-    print("\n--- ESCENARIO 1: URUGUAY EMPATA CON ESPAÑA ---")
-
-    random.seed(42)
-
-    tabla_escenario_1, resultado_uru_ars, resultado_esp_ars = (
+    tabla_ejemplo, resultados_ejemplo = (
         escenario_uruguay_empata_espana(
             elo_dict
         )
     )
 
     print(
-        f"Uruguay vs Arabia Saudita -> "
-        f"{resultado_uru_ars}"
+        "\nPARTIDOS"
+    )
+
+    for partido, resultado in resultados_ejemplo.items():
+
+        print(
+            f"{partido}: {resultado}"
+        )
+
+    print(
+        "\nTABLA FINAL"
+    )
+
+    df_ejemplo = convertir_tabla_dataframe(
+        tabla_ejemplo
     )
 
     print(
-        f"España vs Arabia Saudita -> "
-        f"{resultado_esp_ars}"
+        df_ejemplo.to_string()
     )
 
-    df_escenario_1 = convertir_tabla_dataframe(
-        tabla_escenario_1
+    print(
+        "\nPOSICIÓN DE CABO VERDE:"
     )
 
-    print("\nTabla final:")
-    print(df_escenario_1.to_string())
+    print(
+        clasificar_posicion_cabo_verde(
+            tabla_ejemplo
+        )
+    )
 
-    # Ejemplo individual del escenario 2
-    print("\n--- ESCENARIO 2: URUGUAY DERROTA A ESPAÑA ---")
+    # MONTE CARLO ESCENARIO 1
 
-    random.seed(42)
+    print(
+        "\n\nEJECUTANDO MONTE CARLO..."
+    )
 
-    tabla_escenario_2, resultado_uru_ars, resultado_esp_ars = (
-        escenario_uruguay_gana_espana(
+    resultados_escenario_1 = (
+        monte_carlo_escenario(
+            escenario_uruguay_empata_espana,
             elo_dict
         )
     )
 
+    resultados_escenario_2 = (
+        monte_carlo_escenario(
+            escenario_uruguay_gana_espana,
+            elo_dict
+        )
+    )
+
+    # MOSTRAR RESULTADOS
+
+    imprimir_resultados(
+        "ESCENARIO 1: URUGUAY EMPATA CON ESPAÑA",
+        resultados_escenario_1
+    )
+
+    imprimir_resultados(
+        "ESCENARIO 2: URUGUAY VENCE A ESPAÑA",
+        resultados_escenario_2
+    )
+
+    # GUARDAR RESULTADOS
+
+    df_resultados = pd.DataFrame({
+        "Posición": [
+            "1°",
+            "2°",
+            "3°",
+            "4°"
+        ],
+        "Uruguay empata con España": [
+            resultados_escenario_1["1°"],
+            resultados_escenario_1["2°"],
+            resultados_escenario_1["3°"],
+            resultados_escenario_1["4°"]
+        ],
+        "Uruguay vence a España": [
+            resultados_escenario_2["1°"],
+            resultados_escenario_2["2°"],
+            resultados_escenario_2["3°"],
+            resultados_escenario_2["4°"]
+        ]
+    })
+
+    df_resultados.to_csv(
+        "Data/resultados_escenarios_mundial.csv",
+        index=False
+    )
+
+    # --------------------------------------------------------
+    # GRÁFICA
+    # --------------------------------------------------------
+
+    x = np.arange(4)
+
+    ancho = 0.35
+
+    plt.figure(
+        figsize=(10, 6)
+    )
+
+    plt.bar(
+        x - ancho / 2,
+        df_resultados[
+            "Uruguay empata con España"
+        ] * 100,
+        width=ancho,
+        label="Uruguay empata con España"
+    )
+
+    plt.bar(
+        x + ancho / 2,
+        df_resultados[
+            "Uruguay vence a España"
+        ] * 100,
+        width=ancho,
+        label="Uruguay vence a España"
+    )
+
+    plt.xticks(
+        x,
+        df_resultados["Posición"]
+    )
+
+    plt.xlabel(
+        "Posición final de Cabo Verde"
+    )
+
+    plt.ylabel(
+        "Probabilidad (%)"
+    )
+
+    plt.title(
+        "Escenarios de clasificación de Cabo Verde"
+    )
+
+    plt.legend()
+
+    plt.tight_layout()
+
+    plt.savefig(
+        "Graficas/escenarios_mundial.png",
+        dpi=300
+    )
+
+    plt.close()
+
     print(
-        f"Uruguay vs Arabia Saudita -> "
-        f"{resultado_uru_ars}"
+        "\nResultados guardados en:"
     )
 
     print(
-        f"España vs Arabia Saudita -> "
-        f"{resultado_esp_ars}"
+        "Data/resultados_escenarios_mundial.csv"
     )
-
-    df_escenario_2 = convertir_tabla_dataframe(
-        tabla_escenario_2
-    )
-
-    print("\nTabla final:")
-    print(df_escenario_2.to_string())
-
-    # Monte Carlo
-    n_simulaciones = 100000
 
     print(
-        f"\nEJECUTANDO MONTE CARLO "
-        f"({n_simulaciones:,} simulaciones por escenario)..."
+        "Graficas/escenarios_mundial.png"
     )
-
-    random.seed(42)
-
-    resultados_empate = monte_carlo_escenario(
-        elo_dict,
-        "empate",
-        n_simulaciones
-    )
-
-    random.seed(42)
-
-    resultados_victoria = monte_carlo_escenario(
-        elo_dict,
-        "victoria_uruguay",
-        n_simulaciones
-    )
-
-    mostrar_resultados_monte_carlo(
-        "MONTE CARLO: URUGUAY EMPATA CON ESPAÑA",
-        resultados_empate
-    )
-
-    mostrar_resultados_monte_carlo(
-        "MONTE CARLO: URUGUAY DERROTA A ESPAÑA",
-        resultados_victoria
-    )
-
-    graficar_resultados_monte_carlo(
-        resultados_empate,
-        resultados_victoria
-    )
-
-    print("\nNota: las posiciones empatadas indican que dos o más equipos terminaron con los mismos puntos.\nComo el modelo actual no simula marcadores, no se aplica diferencia de goles como criterio de desempate.")
-
