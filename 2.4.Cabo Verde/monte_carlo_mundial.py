@@ -6,7 +6,8 @@ from simulador_mundial import (
     GRUPOS,
     cargar_elo,
     verificar_equipos,
-    simular_mundial,
+    simular_grupo,
+    simular_grupos_sin_h,
     ordenar_grupo,
     ordenar_terceros
 )
@@ -18,101 +19,108 @@ N_SIMULACIONES = 100000
 SEMILLA = 42
 
 
-# FUNCIÓN PRINCIPAL DE MONTE CARLO
+# Simula el Grupo H hasta obtener un escenario donde Cabo Verde termine tercero con exactamente tres puntos.
+def simular_grupo_h_condicionado(elo_dict):
+    equipos_h = GRUPOS["H"]
 
-def ejecutar_monte_carlo(elo_dict, n_simulaciones=N_SIMULACIONES):
-
-    resultados_posicion_grupo_h = {
-        1: 0,
-        2: 0,
-        3: 0,
-        4: 0
-    }
-
-    veces_tercero = 0
-    veces_mejores_ocho = 0
-    veces_clasifica = 0
-
-    resultados_terceros = []
-
-    for i in range(n_simulaciones):
-
-        resultados_grupos, terceros = simular_mundial(elo_dict)
-
-        # Posición de Cabo Verde en el Grupo H
-
-        tabla_h = resultados_grupos["H"]["tabla"]
+    # Repite la simulación hasta encontrar un resultado que cumpla las condiciones del escenario analizado.
+    while True:
+        tabla_h, _ = simular_grupo(
+            equipos_h,
+            elo_dict
+        )
 
         orden_h = ordenar_grupo(
             tabla_h,
             elo_dict
         )
 
-        posicion_cv = orden_h.index("Cabo Verde") + 1
+        posicion_cv = (
+            orden_h.index("Cabo Verde") + 1
+        )
 
-        resultados_posicion_grupo_h[posicion_cv] += 1
+        puntos_cv = tabla_h[
+            "Cabo Verde"
+        ]["Pts"]
 
-        # Si Cabo Verde terminó tercero
+        if (
+            posicion_cv == 3
+            and puntos_cv == 3
+        ):
+            return tabla_h
 
-        if posicion_cv == 3:
 
-            veces_tercero += 1
+# Estima mediante Monte Carlo la probabilidad de que Cabo Verde clasifique entre los ocho mejores terceros, condicionado a que termine tercero del Grupo H con exactamente tres puntos.
+def ejecutar_monte_carlo(
+    elo_dict,
+    n_simulaciones=N_SIMULACIONES
+):
+    veces_mejores_ocho = 0
+    resultados_terceros = []
 
-            # Ordenamos los 12 terceros
-            terceros_ordenados = ordenar_terceros(
-                terceros,
-                elo_dict
-            )
+    for i in range(n_simulaciones):
 
-            # Buscamos la posición de Cabo Verde
-            posicion_tercero_cv = None
+        # Genera un Grupo H donde Cabo Verde termina tercero con exactamente tres puntos.
+        tabla_h = simular_grupo_h_condicionado(
+            elo_dict
+        )
 
+        # Obtiene las estadísticas de Cabo Verde en el escenario generado.
+        datos_cv = tabla_h[
+            "Cabo Verde"
+        ].copy()
+
+        datos_cv["Equipo"] = "Cabo Verde"
+        datos_cv["Grupo"] = "H"
+
+        # Simula los otros once grupos del Mundial y obtiene el tercer lugar de cada uno.
+        terceros = simular_grupos_sin_h(
+            elo_dict
+        )
+
+        # Incorpora a Cabo Verde como el tercer lugar correspondiente al Grupo H.
+        terceros.append(
+            datos_cv
+        )
+
+        # Ordena los doce terceros utilizando los mismos criterios de clasificación del modelo.
+        terceros_ordenados = ordenar_terceros(
+            terceros,
+            elo_dict
+        )
+
+        # Determina la posición de Cabo Verde entre los doce terceros.
+        posicion_tercero_cv = next(
+            posicion
             for posicion, tercero in enumerate(
                 terceros_ordenados,
                 start=1
-            ):
-
-                if tercero["Equipo"] == "Cabo Verde":
-                    posicion_tercero_cv = posicion
-                    break
-
-            # Cabo Verde está entre los 8 mejores terceros
-
-            if posicion_tercero_cv <= 8:
-
-                veces_mejores_ocho += 1
-                veces_clasifica += 1
-
-            # Guardamos información para análisis posterior
-
-            tercero_cv = next(
-                tercero
-                for tercero in terceros
-                if tercero["Equipo"] == "Cabo Verde"
             )
+            if tercero["Equipo"] == "Cabo Verde"
+        )
 
-            resultados_terceros.append({
-                "posicion_tercero": posicion_tercero_cv,
-                "puntos": tercero_cv["Pts"],
-                "diferencia_goles": tercero_cv["DG"],
-                "goles_favor": tercero_cv["GF"],
-                "goles_contra": tercero_cv["GC"]
-            })
+        # Si Cabo Verde se encuentra entre las primeras ocho posiciones, clasifica como uno de los mejores terceros.
+        if posicion_tercero_cv <= 8:
+            veces_mejores_ocho += 1
 
-        # Progreso
+        # Guarda las estadísticas de Cabo Verde para analizar posteriormente su comportamiento entre los terceros lugares.
+        resultados_terceros.append({
+            "posicion_tercero": posicion_tercero_cv,
+            "puntos": datos_cv["Pts"],
+            "diferencia_goles": datos_cv["DG"],
+            "goles_favor": datos_cv["GF"],
+            "goles_contra": datos_cv["GC"]
+        })
 
+        # Muestra el progreso cada diez mil simulaciones.
         if (i + 1) % 10000 == 0:
-
             print(
                 f"Simulaciones completadas: "
                 f"{i + 1:,}/{n_simulaciones:,}"
             )
 
     return (
-        resultados_posicion_grupo_h,
-        veces_tercero,
         veces_mejores_ocho,
-        veces_clasifica,
         resultados_terceros
     )
 
@@ -121,225 +129,170 @@ def ejecutar_monte_carlo(elo_dict, n_simulaciones=N_SIMULACIONES):
 
 if __name__ == "__main__":
 
-    print("=" * 75)
     print("MONTE CARLO - MUNDIAL 2026")
-    print("CABO VERDE Y LOS 12 TERCEROS LUGARES")
-    print("=" * 75)
+    print(
+        "CABO VERDE COMO TERCERO "
+        "DEL GRUPO H CON 3 PUNTOS"
+    )
 
-    # Semillas para reproducibilidad
-
+    # Fija las semillas para que los resultados de la simulación puedan reproducirse.
     random.seed(SEMILLA)
     np.random.seed(SEMILLA)
 
-    # Cargar Elo
-
+    # Carga los ratings Elo y verifica que estén disponibles las 48 selecciones utilizadas en la simulación.
     elo_dict = cargar_elo()
 
-    verificar_equipos(elo_dict)
+    verificar_equipos(
+        elo_dict
+    )
 
-    # Ejecutar Monte Carlo
-
-    print("\n")
-    print("=" * 75)
-    print("INICIANDO SIMULACIÓN")
-    print("=" * 75)
+    # Ejecuta el escenario condicionado cien mil veces.
+    print("\nINICIANDO SIMULACIÓN")
 
     (
-        posiciones_h,
-        veces_tercero,
         veces_mejores_ocho,
-        veces_clasifica,
         resultados_terceros
     ) = ejecutar_monte_carlo(
         elo_dict,
         N_SIMULACIONES
     )
 
-    # RESULTADOS DEL GRUPO H
+    # Calcula la frecuencia relativa con la que Cabo Verde queda entre los ocho mejores terceros.
+    prob_mejores_ocho = (
+        veces_mejores_ocho
+        / N_SIMULACIONES
+        * 100
+    )
 
-    print("\n")
-    print("=" * 75)
-    print("RESULTADOS DE CABO VERDE EN EL GRUPO H")
-    print("=" * 75)
+    veces_fuera_ocho = (
+        N_SIMULACIONES
+        - veces_mejores_ocho
+    )
 
-    for posicion in range(1, 5):
-
-        cantidad = posiciones_h[posicion]
-
-        porcentaje = (
-            cantidad / N_SIMULACIONES
-        ) * 100
-
-        print(
-            f"{posicion}° lugar: "
-            f"{cantidad:,} simulaciones "
-            f"({porcentaje:.2f}%)"
-        )
-
-    # PROBABILIDAD DE TERMINAR TERCERO
-
-    prob_tercero = (
-        veces_tercero / N_SIMULACIONES
-    ) * 100
-
-    print("\n")
-    print("=" * 75)
-    print("CABO VERDE COMO TERCER LUGAR")
-    print("=" * 75)
+    print("\nRESULTADO DEL ESCENARIO CONDICIONADO")
 
     print(
-        f"Veces que terminó 3°: "
-        f"{veces_tercero:,}"
+        "Condición analizada: Cabo Verde termina "
+        "3° del Grupo H con exactamente 3 puntos."
     )
 
     print(
-        f"Probabilidad estimada de terminar 3°: "
-        f"{prob_tercero:.2f}%"
-    )
-
-    # PROBABILIDAD DE ESTAR ENTRE LOS 8 MEJORES TERCEROS
-
-    print("\n")
-    print("=" * 75)
-    print("LOS 8 MEJORES TERCEROS")
-    print("=" * 75)
-
-    if veces_tercero > 0:
-
-        prob_mejores_ocho_condicional = (
-            veces_mejores_ocho / veces_tercero
-        ) * 100
-
-        print(
-            f"Veces que Cabo Verde terminó entre los "
-            f"8 mejores terceros: "
-            f"{veces_mejores_ocho:,}"
-        )
-
-        print(
-            f"Probabilidad de estar entre los 8 mejores "
-            f"terceros dado que terminó 3°: "
-            f"{prob_mejores_ocho_condicional:.2f}%"
-        )
-
-    else:
-
-        prob_mejores_ocho_condicional = 0
-
-        print(
-            "Cabo Verde no terminó tercero en ninguna "
-            "simulación."
-        )
-
-    # PROBABILIDAD TOTAL DE CLASIFICAR
-
-    prob_clasifica = (
-        veces_clasifica / N_SIMULACIONES
-    ) * 100
-
-    print("\n")
-    print("=" * 75)
-    print("CLASIFICACIÓN DE CABO VERDE")
-    print("=" * 75)
-
-    print(
-        f"Simulaciones donde Cabo Verde clasificó: "
-        f"{veces_clasifica:,}"
+        f"\nNúmero de simulaciones: "
+        f"{N_SIMULACIONES:,}"
     )
 
     print(
-        f"Probabilidad estimada de clasificar: "
-        f"{prob_clasifica:.2f}%"
+        f"Veces que Cabo Verde quedó entre los "
+        f"8 mejores terceros: "
+        f"{veces_mejores_ocho:,}"
     )
 
-    # DISTRIBUCIÓN DE CABO VERDE ENTRE LOS TERCEROS
+    print(
+        f"Veces que Cabo Verde quedó fuera de los "
+        f"8 mejores terceros: "
+        f"{veces_fuera_ocho:,}"
+    )
 
+    print(
+        f"Probabilidad estimada de clasificar "
+        f"como uno de los 8 mejores terceros: "
+        f"{prob_mejores_ocho:.2f}%"
+    )
+
+    # Convierte los resultados individuales en un DataFrame para analizar la distribución de Cabo Verde entre los doce terceros.
     if resultados_terceros:
 
         df_terceros = pd.DataFrame(
             resultados_terceros
         )
 
-        print("\n")
-        print("=" * 75)
-        print("DISTRIBUCIÓN DE CABO VERDE ENTRE LOS TERCEROS")
-        print("=" * 75)
+        print(
+            "\nDISTRIBUCIÓN DE CABO VERDE "
+            "ENTRE LOS 12 TERCEROS"
+        )
 
         print(
-            "\nPosición promedio entre los terceros:",
+            "\nPosición promedio entre los terceros: "
             f"{df_terceros['posicion_tercero'].mean():.2f}"
         )
 
         print(
-            "Puntos promedio cuando termina tercero:",
+            "Puntos promedio: "
             f"{df_terceros['puntos'].mean():.2f}"
         )
 
         print(
-            "Diferencia de goles promedio:",
+            "Diferencia de goles promedio: "
             f"{df_terceros['diferencia_goles'].mean():.2f}"
         )
 
-        # Frecuencia de cada posición
+        print(
+            "Goles a favor promedio: "
+            f"{df_terceros['goles_favor'].mean():.2f}"
+        )
 
+        print(
+            "Goles en contra promedio: "
+            f"{df_terceros['goles_contra'].mean():.2f}"
+        )
+
+        # Calcula la frecuencia con la que Cabo Verde ocupa cada posición entre los doce terceros.
         frecuencia_posiciones = (
-            df_terceros["posicion_tercero"]
+            df_terceros[
+                "posicion_tercero"
+            ]
             .value_counts()
             .sort_index()
         )
 
         print("\nFrecuencia de posiciones:")
 
-        for posicion, cantidad in frecuencia_posiciones.items():
+        for posicion, cantidad in (
+            frecuencia_posiciones.items()
+        ):
 
             porcentaje = (
-                cantidad / veces_tercero
-            ) * 100
+                cantidad
+                / N_SIMULACIONES
+                * 100
+            )
+
+            if posicion <= 8:
+                estado = "CLASIFICA"
+            else:
+                estado = "NO CLASIFICA"
 
             print(
                 f"{int(posicion)}°: "
                 f"{cantidad:,} "
-                f"({porcentaje:.2f}%)"
+                f"({porcentaje:.2f}%) "
+                f"- {estado}"
             )
 
-        # Guardar resultados
-
+        # Guarda los resultados de las simulaciones para su análisis posterior.
         df_terceros.to_csv(
             "Data/monte_carlo_terceros_cabo_verde.csv",
             index=False
         )
 
-        print("\nArchivo generado:")
         print(
+            "\nArchivo generado: "
             "Data/monte_carlo_terceros_cabo_verde.csv"
         )
 
-    # GUARDAR RESUMEN
-
+    # Guarda un resumen con la cantidad y porcentaje de simulaciones en las que Cabo Verde clasifica o queda eliminado como tercer lugar.
     resumen = pd.DataFrame({
         "resultado": [
-            "1er lugar Grupo H",
-            "2do lugar Grupo H",
-            "3er lugar Grupo H",
-            "4to lugar Grupo H",
             "Entre los 8 mejores terceros",
-            "Clasifica como tercero"
+            "Fuera de los 8 mejores terceros"
         ],
         "cantidad": [
-            posiciones_h[1],
-            posiciones_h[2],
-            posiciones_h[3],
-            posiciones_h[4],
             veces_mejores_ocho,
-            veces_clasifica
+            veces_fuera_ocho
         ],
         "porcentaje": [
-            posiciones_h[1] / N_SIMULACIONES * 100,
-            posiciones_h[2] / N_SIMULACIONES * 100,
-            posiciones_h[3] / N_SIMULACIONES * 100,
-            posiciones_h[4] / N_SIMULACIONES * 100,
-            veces_mejores_ocho / N_SIMULACIONES * 100,
-            prob_clasifica
+            prob_mejores_ocho,
+            100 - prob_mejores_ocho
         ]
     })
 
@@ -348,10 +301,9 @@ if __name__ == "__main__":
         index=False
     )
 
-    print("\nArchivo generado:")
-    print("Data/monte_carlo_mundial_resumen.csv")
+    print(
+        "\nArchivo generado: "
+        "Data/monte_carlo_mundial_resumen.csv"
+    )
 
-    print("\n")
-    print("=" * 75)
-    print("MONTE CARLO FINALIZADO")
-    print("=" * 75)
+    print("\nMONTE CARLO FINALIZADO")

@@ -5,14 +5,10 @@ from itertools import combinations
 
 from simulacion_base import simular_partido
 
-
 # CONFIGURACIÓN
-
 N_SIMULACIONES = 100000
 
-
 # GRUPOS DEL MUNDIAL
-
 GRUPOS = {
     "A": [
         "México",
@@ -99,9 +95,7 @@ GRUPOS = {
     ]
 }
 
-
 # CARGAR ELO
-
 def cargar_elo(
     ruta="Data/elo_limpio.csv"
 ):
@@ -117,9 +111,7 @@ def cargar_elo(
 
     return elo_dict
 
-
 # VERIFICAR LOS 48 EQUIPOS
-
 def verificar_equipos(elo_dict):
 
     equipos_mundial = []
@@ -151,9 +143,7 @@ def verificar_equipos(elo_dict):
         f"{len(equipos_mundial)} equipos encontrados."
     )
 
-
 # CREAR TABLA
-
 def crear_tabla(equipos):
 
     tabla = {}
@@ -174,9 +164,7 @@ def crear_tabla(equipos):
 
     return tabla
 
-
 # ACTUALIZAR TABLA
-
 def actualizar_tabla(
     tabla,
     equipo_a,
@@ -186,7 +174,6 @@ def actualizar_tabla(
     goles_a,
     goles_b
 ):
-
     tabla[equipo_a]["PJ"] += 1
     tabla[equipo_b]["PJ"] += 1
 
@@ -226,14 +213,11 @@ def actualizar_tabla(
         tabla[equipo_a]["E"] += 1
         tabla[equipo_b]["E"] += 1
 
-
 # SIMULAR UN GRUPO
-
 def simular_grupo(
     equipos,
     elo_dict
 ):
-
     tabla = crear_tabla(equipos)
 
     partidos = list(
@@ -279,14 +263,11 @@ def simular_grupo(
 
     return tabla, resultados_partidos
 
-
 # ORDENAR TABLA
-
 def ordenar_grupo(
     tabla,
     elo_dict
 ):
-
     equipos = list(tabla.keys())
 
     equipos.sort(
@@ -307,9 +288,7 @@ def ordenar_grupo(
 
     return equipos
 
-
 # CONVERTIR TABLA A DATAFRAME
-
 def convertir_tabla_dataframe(
     tabla,
     elo_dict
@@ -352,13 +331,10 @@ def convertir_tabla_dataframe(
         columns=columnas
     )
 
-
 # SIMULAR LOS 12 GRUPOS
-
 def simular_mundial(
     elo_dict
 ):
-
     resultados_grupos = {}
 
     terceros = []
@@ -381,7 +357,6 @@ def simular_mundial(
         }
 
         # Tercer lugar del grupo
-
         equipo_tercero = ordenados[2]
 
         datos_tercero = tabla[
@@ -400,16 +375,46 @@ def simular_mundial(
 
     return resultados_grupos, terceros
 
+# Simula todos los grupos excepto el Grupo H y obtiene el tercer lugar de cada uno de los once grupos restantes.
+def simular_grupos_sin_h(elo_dict):
+    terceros = []
+
+    for grupo, equipos in GRUPOS.items():
+
+        if grupo == "H":
+            continue
+
+        tabla, _ = simular_grupo(
+            equipos,
+            elo_dict
+        )
+
+        ordenados = ordenar_grupo(
+            tabla,
+            elo_dict
+        )
+
+        equipo_tercero = ordenados[2]
+
+        datos_tercero = tabla[
+            equipo_tercero
+        ].copy()
+
+        datos_tercero["Equipo"] = equipo_tercero
+        datos_tercero["Grupo"] = grupo
+
+        terceros.append(
+            datos_tercero
+        )
+
+    return terceros
 
 # ORDENAR LOS 12 TERCEROS
-
 def ordenar_terceros(
     terceros,
     elo_dict
 ):
-
     terceros_ordenados = sorted(
-
         terceros,
 
         key=lambda tercero: (
@@ -423,24 +428,17 @@ def ordenar_terceros(
             elo_dict[
                 tercero["Equipo"]
             ]
-
         ),
-
         reverse=True
     )
 
     return terceros_ordenados
 
-
-# ============================================================
 # DATAFRAME DE LOS 12 TERCEROS
-# ============================================================
-
 def terceros_dataframe(
     terceros,
     elo_dict
 ):
-
     terceros_ordenados = ordenar_terceros(
         terceros,
         elo_dict
@@ -483,9 +481,7 @@ def terceros_dataframe(
         filas
     )
 
-
 # PROGRAMA PRINCIPAL
-
 if __name__ == "__main__":
 
     print("=" * 75)
@@ -494,12 +490,10 @@ if __name__ == "__main__":
     print("=" * 75)
 
     # Semillas
-
     random.seed(42)
     np.random.seed(42)
 
     # Cargar Elo
-
     elo_dict = cargar_elo()
 
     verificar_equipos(
@@ -507,7 +501,6 @@ if __name__ == "__main__":
     )
 
     # Mostrar ratings utilizados
-
     print("\nRATINGS ELO DE LOS 48 EQUIPOS:")
 
     for grupo, equipos in GRUPOS.items():
@@ -522,7 +515,6 @@ if __name__ == "__main__":
             )
 
     # Una simulación completa
-
     resultados_grupos, terceros = (
         simular_mundial(
             elo_dict
@@ -530,13 +522,10 @@ if __name__ == "__main__":
     )
 
     # Mostrar cada grupo
-
     for grupo in GRUPOS:
 
         print("\n")
-        print("-" * 75)
         print(f"GRUPO {grupo}")
-        print("-" * 75)
 
         datos = resultados_grupos[
             grupo
@@ -565,11 +554,8 @@ if __name__ == "__main__":
         )
 
     # Terceros
-
     print("\n")
-    print("=" * 75)
     print("LOS 12 TERCEROS LUGARES")
-    print("=" * 75)
 
     df_terceros = terceros_dataframe(
         terceros,
@@ -583,7 +569,6 @@ if __name__ == "__main__":
     )
 
     # Cabo Verde
-
     fila_cv = df_terceros[
         df_terceros["Equipo"]
         == "Cabo Verde"
@@ -596,9 +581,7 @@ if __name__ == "__main__":
         )
 
         print("\n")
-        print("=" * 75)
         print("CABO VERDE")
-        print("=" * 75)
 
         print(
             f"Cabo Verde terminó "
@@ -607,20 +590,12 @@ if __name__ == "__main__":
 
         if posicion_cv <= 8:
 
-            print(
-                "En esta simulación, Cabo Verde "
-                "estaría dentro de los ocho mejores terceros."
-            )
-
+            print("En esta simulación, Cabo Verde estaría dentro de los ocho mejores terceros.")
+        
         else:
-
-            print(
-                "En esta simulación, Cabo Verde "
-                "no estaría dentro de los ocho mejores terceros."
-            )
+            print("En esta simulación, Cabo Verde no estaría dentro de los ocho mejores terceros.")
 
     # Guardar CSV
-
     df_terceros.to_csv(
         "Data/terceros_una_simulacion.csv",
         index=False
